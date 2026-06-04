@@ -855,35 +855,37 @@ body { display: flex; flex-direction: column; }
 }
 
 /* ---- Subsessions (subagents nested under their parent) ---- */
+/* The wrapper groups BAOUW + its subsessions; margin separates it from the
+   project-level "+ older" control so the two levels don't blur together. */
+.session-with-subs { margin-bottom: 12px; }
 .subsessions-toggle {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin: 1px 0 3px 34px;
-  padding: 3px 8px;
+  gap: 4px;
+  margin: -1px 0 2px 38px;       /* indented under the parent's title text */
+  padding: 1px 4px;
   background: transparent;
   border: none;
-  border-radius: 6px;
-  color: var(--c-7a7a90);
-  font-size: 11px;
+  border-radius: 5px;
+  color: var(--c-6a6a80);        /* muted: clearly secondary to the parent */
+  font-size: 10.5px;
   font-weight: 600;
   font-family: inherit;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
-.subsessions-toggle:hover {
-  background: rgb(var(--on) / 0.05);
-  color: var(--c-b0b0c4);
-}
+.subsessions-toggle:hover { color: var(--c-b0b0c4); }
 .subsessions-caret {
   display: inline-flex;
+  opacity: 0.8;
   transition: transform 0.15s;
 }
 .session-with-subs.subs-open .subsessions-caret { transform: rotate(90deg); }
 .subsessions-list {
   display: none;
-  margin-left: 30px;
-  border-left: 1px solid rgb(var(--on) / 0.08);
+  margin-left: 42px;             /* aligned under the toggle, nested */
+  border-left: 1px solid rgb(var(--on) / 0.1);
 }
 .session-with-subs.subs-open .subsessions-list { display: block; }
 
