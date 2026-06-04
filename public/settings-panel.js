@@ -73,6 +73,9 @@
     const maxAgeValue = fieldValue('sessionMaxAgeDays', 3);
     const themeValue = fieldValue('terminalTheme', 'auto');
     const appearanceValue = fieldValue('appearance', 'auto');
+    const showPlansTabValue = fieldValue('showPlansTab', true);
+    const showMemoryTabValue = fieldValue('showMemoryTab', true);
+    const showStatsTabValue = fieldValue('showStatsTab', true);
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
@@ -188,6 +191,36 @@
               <option value="light" ${appearanceValue === 'light' ? 'selected' : ''}>Light</option>
               <option value="dark" ${appearanceValue === 'dark' ? 'selected' : ''}>Dark</option>
             </select>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">Show Plans Tab</span>
+            <div class="settings-description">Show the Plans tab in the sidebar</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-show-plans" ${showPlansTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">Show Agent Files Tab</span>
+            <div class="settings-description">Show the Agent Files (memory) tab in the sidebar</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-show-memory" ${showMemoryTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">Show Stats Tab</span>
+            <div class="settings-description">Show the Stats tab in the sidebar</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-show-stats" ${showStatsTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
           </div>
         </div>
 
@@ -320,6 +353,9 @@
         settings.sessionMaxAgeDays = parseInt(settingsViewerBody.querySelector('#sv-max-age').value) || 3;
         settings.terminalTheme = settingsViewerBody.querySelector('#sv-terminal-theme').value || 'auto';
         settings.appearance = settingsViewerBody.querySelector('#sv-appearance').value || 'auto';
+        settings.showPlansTab = settingsViewerBody.querySelector('#sv-show-plans').checked;
+        settings.showMemoryTab = settingsViewerBody.querySelector('#sv-show-memory').checked;
+        settings.showStatsTab = settingsViewerBody.querySelector('#sv-show-stats').checked;
         settings.mcpEmulation = settingsViewerBody.querySelector('#sv-mcp-emulation').checked;
         settings.shellProfile = settingsViewerBody.querySelector('#sv-shell-profile').value || 'auto';
       }
@@ -345,6 +381,9 @@
         }
         if (typeof window._applyAppearance === 'function') {
           window._applyAppearance(settings.appearance);
+        }
+        if (typeof window._applyTabVisibility === 'function') {
+          window._applyTabVisibility(settings);
         }
         if (typeof refreshSidebar === 'function') refreshSidebar();
       }

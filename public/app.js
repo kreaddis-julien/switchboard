@@ -110,6 +110,21 @@ if (window.matchMedia) {
     });
   } catch {}
 }
+// Show/hide sidebar tabs (Plans / Agent Files / Stats) from settings. Each key
+// defaults to shown unless explicitly false. If the active tab is hidden, fall
+// back to the always-visible Sessions tab.
+window._applyTabVisibility = (s) => {
+  s = s || {};
+  const map = { plans: s.showPlansTab !== false, memory: s.showMemoryTab !== false, stats: s.showStatsTab !== false };
+  for (const [tab, show] of Object.entries(map)) {
+    const btn = document.querySelector(`.sidebar-tab[data-tab="${tab}"]`);
+    if (btn) btn.style.display = show ? '' : 'none';
+    if (!show && activeTab === tab) {
+      const sessionsBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
+      if (sessionsBtn) sessionsBtn.click();
+    }
+  }
+};
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
   TERMINAL_THEME = getTerminalTheme();
@@ -1079,6 +1094,7 @@ setTimeout(() => {
     if (global.appearance) {
       window._applyAppearance(global.appearance);
     }
+    window._applyTabVisibility(global);
   }
 })();
 
