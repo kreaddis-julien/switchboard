@@ -9,6 +9,11 @@
 // showNewSessionPopover, openSettingsViewer, showResumeSessionDialog,
 // showJsonlViewer, forkSession, openSession, loadProjects (app.js/dialogs.js)
 
+// Subagent (sub:<parent>:<id>) sessions are not shown as peers in the sidebar;
+// they are attached under their parent session via a "N subsessions" toggle.
+// Map<parentSessionId, [subagent session, ...]> rebuilt on each renderProjects.
+let _subagentsByParent = new Map();
+
 function slugId(slug) {
   return 'slug-' + slug.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
@@ -116,6 +121,21 @@ function buildSlugGroup(slug, sessions) {
 function renderProjects(projects, resort) {
   const newSidebar = document.createElement('div');
 
+  // Index subagent sessions by their parent so they can be nested under it
+  // (instead of appearing as separate sidebar entries).
+  _subagentsByParent = new Map();
+  for (const project of projects) {
+    for (const s of (project.sessions || [])) {
+      if (s.sessionId && s.sessionId.startsWith('sub:') && s.parentSessionId) {
+        if (!_subagentsByParent.has(s.parentSessionId)) _subagentsByParent.set(s.parentSessionId, []);
+        _subagentsByParent.get(s.parentSessionId).push(s);
+      }
+    }
+  }
+  for (const subs of _subagentsByParent.values()) {
+    subs.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+  }
+
   // Sort project groups using sortedOrder as source of truth
   if (!resort && sortedOrder.length > 0) {
     const orderIndex = new Map(sortedOrder.map((e, i) => [e.projectPath, i]));
@@ -149,7 +169,9 @@ function renderProjects(projects, resort) {
   // Process a project's sessions: filter, sort, slug-group, order, and truncate.
   // Returns { filtered, visible, older, sortOrderEntry } or null if project should be skipped.
   function processProjectSessions(project, resort) {
-    let filtered = project.sessions;
+    // Subagent sessions are nested under their parent (see buildSessionItem), not
+    // listed as peers — drop them from the main list before grouping.
+    let filtered = project.sessions.filter(s => !(s.sessionId && s.sessionId.startsWith('sub:')));
     if (showStarredOnly) filtered = filtered.filter(s => s.starred);
     if (showRunningOnly) filtered = filtered.filter(s => activePtyIds.has(s.sessionId));
     if (showTodayOnly) {
@@ -408,6 +430,10 @@ function renderProjects(projects, resort) {
         } else {
           toEl.classList.remove('collapsed');
         }
+      }
+      if (fromEl.classList.contains('session-with-subs')) {
+        if (fromEl.classList.contains('subs-open')) toEl.classList.add('subs-open');
+        else toEl.classList.remove('subs-open');
       }
       if (fromEl.classList.contains('sessions-older') && fromEl.style.display !== 'none') {
         toEl.style.display = '';
@@ -759,6 +785,33 @@ function buildSessionItem(session) {
   row.appendChild(info);
   row.appendChild(actions);
   item.appendChild(row);
+
+  // If this session has subagent sessions, wrap it with a collapsible
+  // "N subsessions" toggle. The parent stays directly clickable; subagents are
+  // siblings inside the wrapper (so clicking one doesn't also open the parent).
+  const subs = _subagentsByParent.get(session.sessionId);
+  if (subs && subs.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'session-with-subs';
+    wrap.id = 'sw-' + session.sessionId;
+    wrap.appendChild(item);
+
+    const toggle = document.createElement('button');
+    toggle.className = 'subsessions-toggle';
+    toggle.innerHTML = '<span class="subsessions-caret"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>' + subs.length + ' subsession' + (subs.length > 1 ? 's' : '') + '</span>';
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      wrap.classList.toggle('subs-open');
+    });
+
+    const nested = document.createElement('div');
+    nested.className = 'subsessions-list';
+    subs.forEach(sub => nested.appendChild(buildSessionItem(sub)));
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(nested);
+    return wrap;
+  }
 
   return item;
 }
