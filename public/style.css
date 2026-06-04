@@ -1036,23 +1036,46 @@ body { display: flex; flex-direction: column; }
 }
 
 /* ---- Session action buttons ---- */
-.session-actions {
+/* "..." trigger on the session row (revealed on hover) */
+.session-menu-btn {
   flex-shrink: 0;
-  display: flex;
-  gap: 2px;
+  margin-left: auto;
   opacity: 0;
-  transition: opacity 0.12s;
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  background: linear-gradient(90deg, transparent, var(--c-18181f) 10%);
-  padding-left: 8px;
-  padding-right: 4px;
-  z-index: 1;
+  background: none;
+  border: none;
+  color: var(--c-7a7a90);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.12s, background 0.15s, color 0.15s;
 }
+.session-item:hover .session-menu-btn,
+.session-item.menu-open .session-menu-btn { opacity: 1; }
+.session-menu-btn:hover,
+.session-item.menu-open .session-menu-btn { background: rgb(var(--on) / 0.08); color: var(--c-b0b0c4); }
 
-.session-item:hover .session-actions {
-  opacity: 1;
+/* Actions as an inline dropdown menu (no hover overlay -> no accidental clicks) */
+.session-actions {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  margin: 1px 8px 4px 30px;
+  padding: 4px;
+  background: var(--c-1a1a2e);
+  border: 1px solid rgb(var(--on) / 0.1);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+}
+.session-item.menu-open .session-actions { display: flex; }
+
+.session-menu-label {
+  color: var(--c-d0d0e8);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
 }
 
 .session-stop-btn,
@@ -1063,14 +1086,21 @@ body { display: flex; flex-direction: column; }
   cursor: pointer;
   background: none;
   border: none;
-  padding: 4px;
+  padding: 5px 8px;
   line-height: 1;
   transition: all 0.15s;
   border-radius: 5px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
 }
+.session-stop-btn:hover .session-menu-label,
+.session-launch-config-btn:hover .session-menu-label,
+.session-fork-btn:hover .session-menu-label,
+.session-jsonl-btn:hover .session-menu-label,
+.session-archive-btn:hover .session-menu-label { color: inherit; }
 
 .session-stop-btn {
   color: #9b4058;

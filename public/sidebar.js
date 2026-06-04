@@ -14,6 +14,12 @@
 // Map<parentSessionId, [subagent session, ...]> rebuilt on each renderProjects.
 let _subagentsByParent = new Map();
 
+// Close any open session action menu ("..." dropdown) on an outside click.
+document.addEventListener('click', (e) => {
+  if (e.target.closest && (e.target.closest('.session-menu-btn') || e.target.closest('.session-menu'))) return;
+  document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+});
+
 function slugId(slug) {
   return 'slug-' + slug.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
@@ -681,6 +687,16 @@ function rebindSidebarEvents(projects) {
         loadProjects();
       };
     }
+
+    const menuBtn = item.querySelector('.session-menu-btn');
+    if (menuBtn) {
+      menuBtn.onclick = (e) => {
+        e.stopPropagation();
+        const wasOpen = item.classList.contains('menu-open');
+        sidebarContent.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+        if (!wasOpen) item.classList.add('menu-open');
+      };
+    }
   });
 
   // Auto-expand slug group if it contains the active session
@@ -779,6 +795,13 @@ function buildSessionItem(session) {
   launchConfigBtn.title = 'Resume with config';
   launchConfigBtn.innerHTML = ICONS.launchConfig(14);
 
+  // Labels: the actions render as a vertical menu opened via the "..." button.
+  stopBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Stop</span>');
+  forkBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Fork</span>');
+  jsonlBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">View messages</span>');
+  archiveBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + (session.archived ? 'Unarchive' : 'Archive') + '</span>');
+  launchConfigBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Resume with config</span>');
+
   actions.appendChild(stopBtn);
   if (session.type !== 'terminal') {
     actions.appendChild(forkBtn);
@@ -786,12 +809,22 @@ function buildSessionItem(session) {
     actions.appendChild(archiveBtn);
     actions.appendChild(launchConfigBtn);
   }
+  actions.classList.add('session-menu');
+
+  // "..." trigger. Actions are hidden behind a deliberate click (no hover
+  // overlay), so a stray hover/click on the session can't fire stop/fork.
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'session-menu-btn';
+  menuBtn.title = 'Actions';
+  menuBtn.setAttribute('aria-label', 'Session actions');
+  menuBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>';
 
   row.appendChild(pin);
   row.appendChild(dot);
   row.appendChild(info);
-  row.appendChild(actions);
+  row.appendChild(menuBtn);
   item.appendChild(row);
+  item.appendChild(actions);
 
   // If this session has subagent sessions, wrap it with a collapsible
   // "N subsessions" toggle. The parent stays directly clickable; subagents are
