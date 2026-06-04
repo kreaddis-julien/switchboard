@@ -19,6 +19,11 @@ document.addEventListener('click', (e) => {
   if (e.target.closest && (e.target.closest('.session-menu-btn') || e.target.closest('.session-menu'))) return;
   document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
 });
+// The menu is position:fixed (positioned once on open), so close it on scroll/
+// resize rather than let it detach from its button.
+['scroll', 'resize'].forEach(ev => window.addEventListener(ev, () => {
+  document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+}, true));
 
 function slugId(slug) {
   return 'slug-' + slug.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -689,12 +694,23 @@ function rebindSidebarEvents(projects) {
     }
 
     const menuBtn = item.querySelector('.session-menu-btn');
-    if (menuBtn) {
+    const menu = item.querySelector('.session-actions');
+    if (menuBtn && menu) {
       menuBtn.onclick = (e) => {
         e.stopPropagation();
         const wasOpen = item.classList.contains('menu-open');
         sidebarContent.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
-        if (!wasOpen) item.classList.add('menu-open');
+        if (!wasOpen) {
+          item.classList.add('menu-open');  // makes the menu display:flex (fixed)
+          // Position the fixed dropdown under the "..." button, right-aligned;
+          // flip above if it would overflow the bottom of the viewport.
+          const r = menuBtn.getBoundingClientRect();
+          const mw = menu.offsetWidth, mh = menu.offsetHeight;
+          let top = r.bottom + 4;
+          if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+          menu.style.top = top + 'px';
+          menu.style.left = Math.max(8, r.right - mw) + 'px';
+        }
       };
     }
   });

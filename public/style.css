@@ -1062,20 +1062,30 @@ body { display: flex; flex-direction: column; }
   display: none;
   flex-direction: column;
   gap: 1px;
-  margin: 1px 8px 4px 30px;
   padding: 4px;
+  min-width: 168px;
   background: var(--c-1a1a2e);
   border: 1px solid rgb(var(--on) / 0.1);
   border-radius: 8px;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.3);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
 }
-.session-item.menu-open .session-actions { display: flex; }
+/* Floating dropdown (position set by JS at the "..." button). position:fixed so
+   it neither reflows the card (no shifting the subsessions) nor gets clipped by
+   the sidebar's overflow scroll. */
+.session-item.menu-open .session-actions {
+  display: flex;
+  position: fixed;
+  z-index: 1000;
+}
+/* Normalize icon size so labels line up (icons were 12/14/16px → ragged). */
+.session-actions button svg { width: 16px; height: 16px; flex-shrink: 0; }
 
 .session-menu-label {
   color: var(--c-d0d0e8);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
+  white-space: nowrap;
 }
 
 .session-stop-btn,
