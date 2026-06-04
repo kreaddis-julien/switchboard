@@ -86,6 +86,14 @@ const pendingSessions = new Map(); // sessionId → { session, projectPath, fold
 // Bridge functions for settings-panel.js
 window._setVisibleSessionCount = (v) => { visibleSessionCount = v; };
 window._setSessionMaxAge = (v) => { sessionMaxAgeDays = v; };
+// Appearance: auto (follow OS / macOS auto), light, or dark. Sets data-theme on
+// <html>; style.css maps it to the light/dark token sets. Mirrored to
+// localStorage so the inline <head> script can apply it before first paint.
+window._applyAppearance = (mode) => {
+  const m = (mode === 'light' || mode === 'dark') ? mode : 'auto';
+  document.documentElement.dataset.theme = m;
+  try { localStorage.setItem('appearance', m); } catch {}
+};
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
   TERMINAL_THEME = getTerminalTheme();
@@ -1021,6 +1029,9 @@ setTimeout(() => {
     if (global.terminalTheme && TERMINAL_THEMES[global.terminalTheme]) {
       currentThemeName = global.terminalTheme;
       TERMINAL_THEME = getTerminalTheme();
+    }
+    if (global.appearance) {
+      window._applyAppearance(global.appearance);
     }
   }
 })();

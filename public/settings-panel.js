@@ -72,6 +72,7 @@
     const visCountValue = fieldValue('visibleSessionCount', 10);
     const maxAgeValue = fieldValue('sessionMaxAgeDays', 3);
     const themeValue = fieldValue('terminalTheme', 'switchboard');
+    const appearanceValue = fieldValue('appearance', 'auto');
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
@@ -175,6 +176,20 @@
 
       ${!isProject ? `<div class="settings-section">
         <div class="settings-section-title">Application</div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">Appearance</span>
+            <div class="settings-description">App theme. Auto follows the macOS appearance (incl. automatic light/dark).</div>
+          </div>
+          <div class="settings-field-control">
+            <select class="settings-select" id="sv-appearance">
+              <option value="auto" ${appearanceValue === 'auto' ? 'selected' : ''}>Auto (system)</option>
+              <option value="light" ${appearanceValue === 'light' ? 'selected' : ''}>Light</option>
+              <option value="dark" ${appearanceValue === 'dark' ? 'selected' : ''}>Dark</option>
+            </select>
+          </div>
+        </div>
 
         <div class="settings-field">
           <div class="settings-field-info">
@@ -304,6 +319,7 @@
         settings.visibleSessionCount = parseInt(settingsViewerBody.querySelector('#sv-visible-count').value) || 10;
         settings.sessionMaxAgeDays = parseInt(settingsViewerBody.querySelector('#sv-max-age').value) || 3;
         settings.terminalTheme = settingsViewerBody.querySelector('#sv-terminal-theme').value || 'switchboard';
+        settings.appearance = settingsViewerBody.querySelector('#sv-appearance').value || 'auto';
         settings.mcpEmulation = settingsViewerBody.querySelector('#sv-mcp-emulation').checked;
         settings.shellProfile = settingsViewerBody.querySelector('#sv-shell-profile').value || 'auto';
       }
@@ -326,6 +342,9 @@
         }
         if (settings.terminalTheme && typeof window._applyTerminalTheme === 'function') {
           window._applyTerminalTheme(settings.terminalTheme);
+        }
+        if (typeof window._applyAppearance === 'function') {
+          window._applyAppearance(settings.appearance);
         }
         if (typeof refreshSidebar === 'function') refreshSidebar();
       }
