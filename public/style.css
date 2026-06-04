@@ -325,7 +325,7 @@ body { display: flex; flex-direction: column; }
   animation: loading-pulse 1.2s ease-in-out infinite;
 }
 
-#star-toggle, #archive-toggle, #running-toggle, #today-toggle {
+#star-toggle, #archive-toggle, #running-toggle, #today-toggle, #filters-toggle-btn {
   background: transparent;
   border: 1px solid rgb(var(--on) / 0.08);
   color: var(--c-7a7a90);
@@ -344,11 +344,39 @@ body { display: flex; flex-direction: column; }
   justify-content: center;
 }
 
-#star-toggle:hover, #archive-toggle:hover, #running-toggle:hover, #today-toggle:hover {
+#star-toggle:hover, #archive-toggle:hover, #running-toggle:hover, #today-toggle:hover, #filters-toggle-btn:hover {
   background: rgb(var(--on) / 0.04);
   border-color: rgb(var(--on) / 0.12);
   color: var(--c-888);
 }
+
+/* --- Filters popover (the "sliders" magic button) --- */
+#session-filters { position: relative; }
+#filters-toggle-btn.active {
+  background: rgb(var(--on) / 0.08);
+  border-color: rgb(var(--on) / 0.16);
+  color: var(--c-b0b0c4);
+}
+#filters-popover {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  z-index: 50;
+  background: var(--c-18181f);
+  border: 1px solid rgb(var(--on) / 0.1);
+  border-radius: 8px;
+  padding: 6px;
+  grid-template-columns: repeat(4, auto);
+  gap: 4px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+#filters-popover.open { display: grid; }
+/* Reset row-layout margins the buttons carried in the filter row (e.g. grid/resort auto-margins). */
+#filters-popover > button { margin: 0; }
+/* Collapse sits at the far right of whichever row holds it (tab strip or filter row). */
+#sidebar-collapse-btn { margin-left: auto; }
 
 #star-toggle.active {
   background: rgba(245,190,60,0.1);

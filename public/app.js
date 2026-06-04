@@ -130,17 +130,16 @@ window._applyTabVisibility = (s) => {
   const anyShown = map.plans || map.memory || map.stats;
   const tabsRow = document.getElementById('sidebar-tabs');
   const filtersRow = document.getElementById('session-filters');
-  const gear = document.getElementById('global-settings-btn');
   const collapse = document.getElementById('sidebar-collapse-btn');
   const sessionsTabBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
   document.body.classList.toggle('sb-no-tabs', !anyShown);
+  // The gear lives in the filters popover now; only the collapse button moves
+  // between the tab strip (tabbed) and the filter row right side (no-tabs).
   if (!anyShown) {
-    if (gear && filtersRow && gear.parentElement !== filtersRow) filtersRow.appendChild(gear);
     if (collapse && filtersRow && collapse.parentElement !== filtersRow) filtersRow.appendChild(collapse);
     if (tabsRow) tabsRow.style.display = 'none';
   } else {
     if (tabsRow) {
-      if (gear && gear.parentElement !== tabsRow) tabsRow.appendChild(gear);
       if (collapse && collapse.parentElement !== tabsRow) tabsRow.appendChild(collapse);
       tabsRow.style.display = '';
     }
@@ -1061,6 +1060,38 @@ initGridObservers();
   gridToggleBtn.addEventListener('click', toggleGridView);
   // Insert next to the resort button
   resortBtn.parentElement.insertBefore(gridToggleBtn, resortBtn);
+
+  // --- Filters popover: gather the filter/action/settings controls behind one
+  // "sliders" button so the sidebar header stays a single tidy row. ---
+  {
+    const filtersRow = document.getElementById('session-filters');
+    if (filtersRow) {
+      const magic = document.createElement('button');
+      magic.id = 'filters-toggle-btn';
+      magic.title = 'Filters & actions';
+      magic.setAttribute('aria-label', 'Filters & actions');
+      magic.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>';
+      const popover = document.createElement('div');
+      popover.id = 'filters-popover';
+      // Re-parent the controls into the popover (order preserved). Their click
+      // handlers are bound to these same nodes, so they keep working.
+      ['running-toggle', 'star-toggle', 'today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn', 'global-settings-btn']
+        .forEach(id => { const el = document.getElementById(id); if (el) popover.appendChild(el); });
+      filtersRow.insertBefore(magic, filtersRow.firstChild);
+      filtersRow.appendChild(popover);
+
+      const closePopover = () => { popover.classList.remove('open'); magic.classList.remove('active'); };
+      magic.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = popover.classList.toggle('open');
+        magic.classList.toggle('active', open);
+      });
+      document.addEventListener('click', (e) => {
+        if (popover.classList.contains('open') && !popover.contains(e.target) && !magic.contains(e.target)) closePopover();
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
+    }
+  }
 
   // Global keyboard shortcuts (covers non-terminal focus)
   // When a terminal is focused, xterm's customKeyEventHandler fires first and sets
