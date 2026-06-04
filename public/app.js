@@ -93,7 +93,23 @@ window._applyAppearance = (mode) => {
   const m = (mode === 'light' || mode === 'dark') ? mode : 'auto';
   document.documentElement.dataset.theme = m;
   try { localStorage.setItem('appearance', m); } catch {}
+  // If the terminal theme follows the app ('auto'), repaint it for the new appearance.
+  if (currentThemeName === 'auto' && typeof window._applyTerminalTheme === 'function') {
+    window._applyTerminalTheme('auto');
+  }
 };
+// Follow OS light/dark flips for an 'auto' terminal theme when appearance is auto
+// (the app's CSS variables flip on their own via the prefers-color-scheme media query).
+if (window.matchMedia) {
+  try {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+      const t = document.documentElement.dataset.theme;
+      if ((!t || t === 'auto') && currentThemeName === 'auto' && typeof window._applyTerminalTheme === 'function') {
+        window._applyTerminalTheme('auto');
+      }
+    });
+  } catch {}
+}
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
   TERMINAL_THEME = getTerminalTheme();

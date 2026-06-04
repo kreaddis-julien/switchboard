@@ -71,7 +71,7 @@
     const addDirsValue = fieldValue('addDirs', '');
     const visCountValue = fieldValue('visibleSessionCount', 10);
     const maxAgeValue = fieldValue('sessionMaxAgeDays', 3);
-    const themeValue = fieldValue('terminalTheme', 'switchboard');
+    const themeValue = fieldValue('terminalTheme', 'auto');
     const appearanceValue = fieldValue('appearance', 'auto');
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
@@ -318,7 +318,7 @@
         settings.addDirs = settingsViewerBody.querySelector('#sv-add-dirs').value.trim();
         settings.visibleSessionCount = parseInt(settingsViewerBody.querySelector('#sv-visible-count').value) || 10;
         settings.sessionMaxAgeDays = parseInt(settingsViewerBody.querySelector('#sv-max-age').value) || 3;
-        settings.terminalTheme = settingsViewerBody.querySelector('#sv-terminal-theme').value || 'switchboard';
+        settings.terminalTheme = settingsViewerBody.querySelector('#sv-terminal-theme').value || 'auto';
         settings.appearance = settingsViewerBody.querySelector('#sv-appearance').value || 'auto';
         settings.mcpEmulation = settingsViewerBody.querySelector('#sv-mcp-emulation').checked;
         settings.shellProfile = settingsViewerBody.querySelector('#sv-shell-profile').value || 'auto';

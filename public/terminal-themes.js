@@ -1,5 +1,8 @@
 // --- Terminal themes ---
 const TERMINAL_THEMES = {
+  // Resolved at runtime by getTerminalTheme() to a light/dark palette based on
+  // the app appearance (data-theme / prefers-color-scheme). No palette of its own.
+  auto: { label: 'Auto (match app)' },
   switchboard: {
     label: 'Switchboard',
     background: '#1a1a2e', foreground: '#e0e0e0', cursor: '#e94560', selectionBackground: '#3a3a5e',
@@ -24,6 +27,12 @@ const TERMINAL_THEMES = {
     black: '#45475a', red: '#f38ba8', green: '#a6e3a1', yellow: '#f9e2af', blue: '#89b4fa', magenta: '#f5c2e7', cyan: '#94e2d5', white: '#bac2de',
     brightBlack: '#585b70', brightRed: '#f38ba8', brightGreen: '#a6e3a1', brightYellow: '#f9e2af', brightBlue: '#89b4fa', brightMagenta: '#f5c2e7', brightCyan: '#94e2d5', brightWhite: '#a6adc8',
   },
+  catppuccinLatte: {
+    label: 'Catppuccin Latte',
+    background: '#eff1f5', foreground: '#4c4f69', cursor: '#dc8a78', selectionBackground: '#acb0be',
+    black: '#5c5f77', red: '#d20f39', green: '#40a02b', yellow: '#df8e1d', blue: '#1e66f5', magenta: '#ea76cb', cyan: '#179299', white: '#acb0be',
+    brightBlack: '#6c6f85', brightRed: '#d20f39', brightGreen: '#40a02b', brightYellow: '#df8e1d', brightBlue: '#1e66f5', brightMagenta: '#ea76cb', brightCyan: '#179299', brightWhite: '#bcc0cc',
+  },
   dracula: {
     label: 'Dracula',
     background: '#282a36', foreground: '#f8f8f2', cursor: '#f8f8f2', selectionBackground: '#44475a',
@@ -44,8 +53,18 @@ const TERMINAL_THEMES = {
   },
 };
 
-let currentThemeName = 'switchboard';
+let currentThemeName = 'auto';
+// Resolve the effective appearance (light/dark) from the app's data-theme,
+// falling back to the OS via prefers-color-scheme when appearance is auto.
+function resolvedAppearance() {
+  const t = document.documentElement.dataset.theme;
+  if (t === 'light' || t === 'dark') return t;
+  return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+}
 function getTerminalTheme() {
-  return TERMINAL_THEMES[currentThemeName] || TERMINAL_THEMES.switchboard;
+  let name = currentThemeName;
+  // 'auto' follows the app appearance: Catppuccin Latte (light) / Mocha (dark).
+  if (name === 'auto') name = resolvedAppearance() === 'light' ? 'catppuccinLatte' : 'catppuccinMocha';
+  return TERMINAL_THEMES[name] || TERMINAL_THEMES.switchboard;
 }
 let TERMINAL_THEME = getTerminalTheme();
