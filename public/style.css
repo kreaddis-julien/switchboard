@@ -2930,6 +2930,11 @@ body { display: flex; flex-direction: column; }
   justify-content: center;
 }
 
+/* No-tabs mode: gear + collapse are moved onto the filter row, where
+   #loading-status's margin-left:auto already right-aligns the cluster. Drop the
+   gear's own auto-margin so the two don't create a gap. */
+body.sb-no-tabs #global-settings-btn { margin-left: 0; }
+
 #global-settings-btn:hover {
   background: rgb(var(--on) / 0.04);
   border-color: rgb(var(--on) / 0.12);

@@ -124,12 +124,28 @@ window._applyTabVisibility = (s) => {
       if (sessionsBtn) sessionsBtn.click();
     }
   }
-  // With no optional tab shown, the lone Sessions tab button is redundant (its
-  // content is the default view anyway) — hide it so the remaining icons sit
-  // better. It returns as soon as any optional tab is re-enabled.
+  // With no optional tab shown, the whole tab strip is redundant (Sessions is the
+  // default view). Move the gear + collapse controls down onto the filter row and
+  // hide the empty strip, so everything sits on one row. Restored when any tab returns.
   const anyShown = map.plans || map.memory || map.stats;
+  const tabsRow = document.getElementById('sidebar-tabs');
+  const filtersRow = document.getElementById('session-filters');
+  const gear = document.getElementById('global-settings-btn');
+  const collapse = document.getElementById('sidebar-collapse-btn');
   const sessionsTabBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
-  if (sessionsTabBtn) sessionsTabBtn.style.display = anyShown ? '' : 'none';
+  document.body.classList.toggle('sb-no-tabs', !anyShown);
+  if (!anyShown) {
+    if (gear && filtersRow && gear.parentElement !== filtersRow) filtersRow.appendChild(gear);
+    if (collapse && filtersRow && collapse.parentElement !== filtersRow) filtersRow.appendChild(collapse);
+    if (tabsRow) tabsRow.style.display = 'none';
+  } else {
+    if (tabsRow) {
+      if (gear && gear.parentElement !== tabsRow) tabsRow.appendChild(gear);
+      if (collapse && collapse.parentElement !== tabsRow) tabsRow.appendChild(collapse);
+      tabsRow.style.display = '';
+    }
+    if (sessionsTabBtn) sessionsTabBtn.style.display = '';
+  }
 };
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
