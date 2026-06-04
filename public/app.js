@@ -124,6 +124,12 @@ window._applyTabVisibility = (s) => {
       if (sessionsBtn) sessionsBtn.click();
     }
   }
+  // With no optional tab shown, the lone Sessions tab button is redundant (its
+  // content is the default view anyway) — hide it so the remaining icons sit
+  // better. It returns as soon as any optional tab is re-enabled.
+  const anyShown = map.plans || map.memory || map.stats;
+  const sessionsTabBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
+  if (sessionsTabBtn) sessionsTabBtn.style.display = anyShown ? '' : 'none';
 };
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
