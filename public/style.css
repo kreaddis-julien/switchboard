@@ -857,35 +857,36 @@ body { display: flex; flex-direction: column; }
 /* ---- Subsessions (subagents nested under their parent) ---- */
 /* The wrapper groups BAOUW + its subsessions; margin separates it from the
    project-level "+ older" control so the two levels don't blur together. */
-.session-with-subs { margin-bottom: 12px; }
+.session-with-subs { margin-bottom: 14px; }
 .subsessions-toggle {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin: -1px 0 2px 38px;       /* indented under the parent's title text */
-  padding: 1px 4px;
+  gap: 6px;
+  margin: 6px 0 0 42px;          /* breathe below the card, indent under the title */
+  padding: 4px 8px;
   background: transparent;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   color: var(--c-6a6a80);        /* muted: clearly secondary to the parent */
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.02em;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
-.subsessions-toggle:hover { color: var(--c-b0b0c4); }
+.subsessions-toggle:hover { background: rgb(var(--on) / 0.05); color: var(--c-b0b0c4); }
 .subsessions-caret {
   display: inline-flex;
-  opacity: 0.8;
+  opacity: 0.75;
   transition: transform 0.15s;
 }
 .session-with-subs.subs-open .subsessions-caret { transform: rotate(90deg); }
 .subsessions-list {
   display: none;
-  margin-left: 42px;             /* aligned under the toggle, nested */
-  border-left: 1px solid rgb(var(--on) / 0.1);
+  margin: 4px 0 2px 50px;        /* aligned under the toggle text, nested as a tree */
+  border-left: 1.5px solid rgb(var(--on) / 0.12);
+  padding-left: 4px;
 }
 .session-with-subs.subs-open .subsessions-list { display: block; }
 
@@ -1088,11 +1089,11 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
 }
 
-.session-stop-btn,
-.session-launch-config-btn,
-.session-fork-btn,
-.session-jsonl-btn,
-.session-archive-btn {
+.session-actions .session-stop-btn,
+.session-actions .session-launch-config-btn,
+.session-actions .session-fork-btn,
+.session-actions .session-jsonl-btn,
+.session-actions .session-archive-btn {
   cursor: pointer;
   background: none;
   border: none;
