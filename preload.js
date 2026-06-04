@@ -67,6 +67,9 @@ contextBridge.exposeInMainWorld('api', {
   onProjectsChanged: (callback) => {
     ipcRenderer.on('projects-changed', () => callback());
   },
+  onOpenGlobalSettings: (callback) => {
+    ipcRenderer.on('open-global-settings', () => callback());
+  },
   onStatusUpdate: (callback) => {
     ipcRenderer.on('status-update', (_event, text, type) => callback(text, type));
   },

@@ -471,11 +471,13 @@ resortBtn.addEventListener('click', () => {
   loadProjects({ resort: true });
 });
 
-// --- Global settings gear button ---
-globalSettingsBtn.innerHTML = ICONS.gear(18);
-globalSettingsBtn.addEventListener('click', () => {
-  openSettingsViewer('global');
-});
+// --- Global settings: opened from the macOS menu bar (Switchboard > Settings, Cmd+,) ---
+// The in-UI gear button was removed in favor of the native menu item.
+if (window.api && typeof window.api.onOpenGlobalSettings === 'function') {
+  window.api.onOpenGlobalSettings(() => {
+    if (typeof openSettingsViewer === 'function') openSettingsViewer('global');
+  });
+}
 
 // --- Add project button ---
 addProjectBtn.addEventListener('click', () => {
@@ -1075,7 +1077,7 @@ initGridObservers();
       popover.id = 'filters-popover';
       // Re-parent the controls into the popover (order preserved). Their click
       // handlers are bound to these same nodes, so they keep working.
-      ['running-toggle', 'star-toggle', 'today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn', 'global-settings-btn']
+      ['running-toggle', 'star-toggle', 'today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn']
         .forEach(id => { const el = document.getElementById(id); if (el) popover.appendChild(el); });
       filtersRow.insertBefore(magic, filtersRow.firstChild);
       filtersRow.appendChild(popover);
