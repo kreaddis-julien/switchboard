@@ -589,6 +589,11 @@ async function confirmAndStopSession(sessionId) {
     setActiveSession(null);
     terminalHeader.style.display = 'none';
     placeholder.style.display = '';
+  } else if (gridViewActive) {
+    // In the session overview, stopping should remove the card so the grid
+    // reflects only live/open work (not a lingering stopped terminal).
+    destroySession(sessionId);
+    gridViewerCount.textContent = gridCards.size + ' session' + (gridCards.size !== 1 ? 's' : '');
   }
   refreshSidebar();
 }
@@ -1076,17 +1081,20 @@ initGridObservers();
       const popover = document.createElement('div');
       popover.id = 'filters-popover';
       // Re-parent the SECONDARY controls into the popover (order preserved); their
-      // click handlers stay bound to the same nodes. running + pin stay visible.
-      ['today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn']
+      // click handlers stay bound to the same nodes. running + pin + overview
+      // (grid) stay directly visible.
+      ['today-toggle', 'archive-toggle', 'resort-btn', 'add-project-btn']
         .forEach(id => { const el = document.getElementById(id); if (el) popover.appendChild(el); });
-      // Wrapper anchors the popover under the magic button; placed right after the
-      // always-visible running + pin toggles.
+      // Visible cluster order: running, pin, overview(grid), then the magic button
+      // (with the popover anchored under it).
       const wrap = document.createElement('span');
       wrap.className = 'filters-magic-wrap';
       wrap.appendChild(magic);
       wrap.appendChild(popover);
-      const star = document.getElementById('star-toggle');
-      if (star) star.insertAdjacentElement('afterend', wrap);
+      let anchor = document.getElementById('star-toggle');
+      const grid = document.getElementById('grid-toggle-btn');
+      if (grid && anchor) { anchor.insertAdjacentElement('afterend', grid); anchor = grid; }
+      if (anchor) anchor.insertAdjacentElement('afterend', wrap);
       else filtersRow.insertBefore(wrap, filtersRow.firstChild);
 
       const closePopover = () => { popover.classList.remove('open'); magic.classList.remove('active'); };

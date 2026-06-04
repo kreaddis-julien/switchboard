@@ -2839,7 +2839,7 @@ body { display: flex; flex-direction: column; }
   justify-content: center;
 }
 
-#grid-toggle-btn { margin-left: auto; }
+#grid-toggle-btn { margin-left: 0; }
 #resort-btn { margin-left: 2px; }
 #add-project-btn { margin-left: 2px; }
 

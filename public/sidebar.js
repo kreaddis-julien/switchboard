@@ -671,6 +671,13 @@ function rebindSidebarEvents(projects) {
         }
         await window.api.archiveSession(session.sessionId, newVal);
         session.archived = newVal;
+        if (newVal) {
+          // Archiving: also tear down any open/pending instance (e.g. a freshly
+          // forked session that lives client-side until indexed) so it isn't
+          // re-injected into the sidebar after the re-fetch.
+          if (typeof destroySession === 'function') destroySession(session.sessionId);
+          pendingSessions.delete(session.sessionId);
+        }
         loadProjects();
       };
     }
