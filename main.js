@@ -37,8 +37,11 @@ let autoUpdater = null;
 if (app.isPackaged || process.env.FORCE_UPDATER) {
   autoUpdater = require('electron-updater').autoUpdater;
   autoUpdater.logger = log;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // FORK: never auto-download/install upstream releases — they would overwrite
+  // this patched build (light theme + curated PRs). Update via local rebuild
+  // instead. "Check for Updates" still reports availability but won't replace.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
   if (!app.isPackaged) autoUpdater.forceDevUpdateConfig = true;
 
   function sendUpdaterEvent(type, data) {
