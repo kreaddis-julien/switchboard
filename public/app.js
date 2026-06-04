@@ -1075,12 +1075,19 @@ initGridObservers();
       magic.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>';
       const popover = document.createElement('div');
       popover.id = 'filters-popover';
-      // Re-parent the controls into the popover (order preserved). Their click
-      // handlers are bound to these same nodes, so they keep working.
-      ['running-toggle', 'star-toggle', 'today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn']
+      // Re-parent the SECONDARY controls into the popover (order preserved); their
+      // click handlers stay bound to the same nodes. running + pin stay visible.
+      ['today-toggle', 'archive-toggle', 'grid-toggle-btn', 'resort-btn', 'add-project-btn']
         .forEach(id => { const el = document.getElementById(id); if (el) popover.appendChild(el); });
-      filtersRow.insertBefore(magic, filtersRow.firstChild);
-      filtersRow.appendChild(popover);
+      // Wrapper anchors the popover under the magic button; placed right after the
+      // always-visible running + pin toggles.
+      const wrap = document.createElement('span');
+      wrap.className = 'filters-magic-wrap';
+      wrap.appendChild(magic);
+      wrap.appendChild(popover);
+      const star = document.getElementById('star-toggle');
+      if (star) star.insertAdjacentElement('afterend', wrap);
+      else filtersRow.insertBefore(wrap, filtersRow.firstChild);
 
       const closePopover = () => { popover.classList.remove('open'); magic.classList.remove('active'); };
       magic.addEventListener('click', (e) => {

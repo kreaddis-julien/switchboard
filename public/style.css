@@ -352,6 +352,7 @@ body { display: flex; flex-direction: column; }
 
 /* --- Filters popover (the "sliders" magic button) --- */
 #session-filters { position: relative; }
+.filters-magic-wrap { position: relative; display: inline-flex; }
 #filters-toggle-btn.active {
   background: rgb(var(--on) / 0.08);
   border-color: rgb(var(--on) / 0.16);
