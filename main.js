@@ -1449,6 +1449,22 @@ ipcMain.handle('updater-install', () => {
 });
 
 // --- App lifecycle ---
+// Prevent a second Electron instance from killing active PTY sessions (e.g. when
+// the app binary is replaced while running): the second launch would otherwise
+// orphan/kill the first instance's node-pty sessions. requestSingleInstanceLock
+// keeps a single instance; the second quits and the first window is focused.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  // Focus the existing window when a second launch is attempted.
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
 app.whenReady().then(() => {
   // Set Content Security Policy
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -1514,6 +1530,7 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+} // end requestSingleInstanceLock else-branch
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
