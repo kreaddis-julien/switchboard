@@ -6,6 +6,59 @@ Switchboard is a desktop app that gives you a unified view of all your Claude Co
 
 ![Switchboard](build/screenshot.png)
 
+---
+
+> **This is a personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) with extra UI/theming work and a curated set of upstream PRs merged in. The **"Download"** and **"Auto-Updates"** sections below refer to the **official upstream** — this fork is not on those releases, so **build it locally** (see [Build & install this fork](#build--install-this-fork-macos)). Auto-update is disabled here so a local build isn't overwritten.
+
+## What this fork adds
+
+**Theming**
+- Light / Dark / **Auto** appearance (Auto follows the macOS appearance) — Settings → Application.
+- Terminal theme **"Auto (match app)"** → Catppuccin **Latte** (light) / **Mocha** (dark), switching with the app.
+
+**Sidebar & UI**
+- Session actions moved behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no more accidental stop/fork on a mis-hover.
+- Filter/action icons consolidated behind a **"sliders" popover**; *running* + *pin* + *overview* stay directly visible.
+- Toggle the **Plans / Agent Files / Stats** tabs on/off (Settings); when all are off, the tab strip collapses to a single row.
+- **Settings** opened from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
+- **Subagent transcripts** are nested under their parent session via an **"N subsessions"** toggle, instead of cluttering the list as peer sessions.
+
+**Behavior fixes**
+- The session overview removes a session's card when you stop it.
+- Archiving a session also tears down its open/pending instance, so a mis-forked session actually disappears from the sidebar.
+
+**Curated upstream PRs merged in**
+- Security: [#32](https://github.com/doctly/switchboard/pull/32) (shell-injection → argv arrays), [#27](https://github.com/doctly/switchboard/pull/27) (XSS sanitization + CSP + IPC path guards, partial).
+- Robustness: [#56](https://github.com/doctly/switchboard/pull/56) (single-instance lock), [#60](https://github.com/doctly/switchboard/pull/60) (cache ↔ filesystem reconcile), [#61](https://github.com/doctly/switchboard/pull/61) (dedupe external-link open), [#62](https://github.com/doctly/switchboard/pull/62) (resume-attach fix), [#58](https://github.com/doctly/switchboard/pull/58) (terminal exit banner).
+- Performance: [#64](https://github.com/doctly/switchboard/pull/64) (adaptive session polling), [#65](https://github.com/doctly/switchboard/pull/65) (scheduler via cache).
+- Features: [#47](https://github.com/doctly/switchboard/pull/47) (searchable / inline subagent transcripts), [#49](https://github.com/doctly/switchboard/pull/49) (delete-worktree action, slice).
+
+### Build & install this fork (macOS)
+
+A locally-built app is **ad-hoc signed with no quarantine**, so it opens without Gatekeeper prompts (unlike a downloaded, un-notarized build).
+
+```bash
+git clone https://github.com/kreaddis-julien/switchboard
+cd switchboard
+npm install            # compiles native modules (better-sqlite3, node-pty)
+npm run build:mac      # bundles CodeMirror + electron-builder (arm64 + x64)
+# Apple Silicon: dist/mac-arm64/Switchboard.app    |    Intel: dist/mac/Switchboard.app
+ditto "dist/mac-arm64/Switchboard.app" /Applications/Switchboard.app
+rm -rf dist            # optional: avoids extra copies Spotlight would index
+```
+
+Prerequisites: Node + Xcode Command Line Tools (`xcode-select --install`). See [Building](#building) for Windows/Linux.
+
+**Updating from upstream later:**
+```bash
+git remote add upstream https://github.com/doctly/switchboard.git   # once
+git fetch upstream && git rebase upstream/main
+# if public/style.css conflicts: take upstream's, then re-run scripts/apply-light-theme.py
+npm run build:mac
+```
+
+---
+
 ### Key Features
 
 - **Session Browser** — All your Claude Code sessions, organized by project, searchable by content
