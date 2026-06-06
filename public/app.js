@@ -97,6 +97,8 @@ window._applyAppearance = (mode) => {
   if (currentThemeName === 'auto' && typeof window._applyTerminalTheme === 'function') {
     window._applyTerminalTheme('auto');
   }
+  // CodeMirror editors (plans/diffs) follow the app appearance too.
+  if (typeof window._applyCmTheme === 'function') window._applyCmTheme();
 };
 // Follow OS light/dark flips for an 'auto' terminal theme when appearance is auto
 // (the app's CSS variables flip on their own via the prefers-color-scheme media query).
@@ -107,6 +109,7 @@ if (window.matchMedia) {
       if ((!t || t === 'auto') && currentThemeName === 'auto' && typeof window._applyTerminalTheme === 'function') {
         window._applyTerminalTheme('auto');
       }
+      if ((!t || t === 'auto') && typeof window._applyCmTheme === 'function') window._applyCmTheme();
     });
   } catch {}
 }
@@ -176,6 +179,98 @@ const lastActivityTime = new Map(); // sessionId → Date of last terminal outpu
 // Noise patterns — these don't count as activity
 const activityNoiseRe = /file-history-snapshot|^\s*$/;
 
+// --- Sound notifications (#66) ---
+// Synthesized via Web Audio so no audio assets need bundling. A gentle rising
+// chime when a run finishes, a more insistent two-tone when a session needs
+// attention (permission / input). Only fires for non-focused sessions, matching
+// the visual response-ready / needs-attention signals.
+let soundNotificationsEnabled = true;
+window._setSoundNotifications = (v) => { soundNotificationsEnabled = v !== false; };
+
+// System (OS) notifications + dock badge (#feature) ; read-only-by-default click (#25)
+let systemNotificationsEnabled = true;
+window._setSystemNotifications = (v) => {
+  systemNotificationsEnabled = v !== false;
+  // Refléter immédiatement le réglage sur le badge (le vider si désactivé).
+  if (typeof updateAttentionBadge === 'function') updateAttentionBadge();
+};
+let openSessionsReadOnly = true;
+window._setOpenSessionsReadOnly = (v) => { openSessionsReadOnly = v !== false; };
+
+let _audioCtx = null;
+function _audio() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {});
+  return _audioCtx;
+}
+
+function _chime(ctx, freq, startAt, dur, peak) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(peak, startAt + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(startAt);
+  osc.stop(startAt + dur + 0.02);
+}
+
+function playNotifSound(kind) {
+  if (!soundNotificationsEnabled) return;
+  const ctx = _audio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  if (kind === 'attention') {
+    _chime(ctx, 880, t, 0.18, 0.22);
+    _chime(ctx, 1175, t + 0.16, 0.22, 0.22);
+  } else {
+    _chime(ctx, 660, t, 0.16, 0.16);
+    _chime(ctx, 988, t + 0.13, 0.30, 0.16);
+  }
+}
+
+// Label lisible d'une session pour les notifications OS
+function _sessionLabel(sessionId) {
+  const s = sessionMap.get(sessionId);
+  if (!s) return 'A session';
+  const proj = (s.projectPath || '').split('/').filter(Boolean).pop() || '';
+  // cleanDisplayName attend une CHAINE (name), pas l'objet session.
+  const raw = s.name || s.aiTitle || s.summary || '';
+  let name = '';
+  try { name = (typeof cleanDisplayName === 'function' ? cleanDisplayName(raw) : raw) || ''; } catch { name = raw; }
+  name = String(name).trim();
+  return name ? (proj ? `${name} · ${proj}` : name) : (proj || 'A session');
+}
+
+// Notification native macOS (Notification Center) ; clic -> focus la session
+function notifyOS(sessionId, kind) {
+  if (!systemNotificationsEnabled) return;
+  const label = _sessionLabel(sessionId);
+  const body = kind === 'attention' ? `${label} needs your attention` : `${label} finished`;
+  // ipcRenderer.send ne peut échouer que sur un bug de bridge (préload/refactor) :
+  // on logue au lieu de l'avaler silencieusement.
+  try { window.api.notifySession({ title: 'Switchboard', body, sessionId }); }
+  catch (e) { console.error('[notifyOS] notification bridge failed', e); }
+}
+
+// Badge du dock = nombre de sessions distinctes en attente d'action (union
+// attention + response-ready ; une même session ne compte qu'une fois).
+function updateAttentionBadge() {
+  let n = 0;
+  if (systemNotificationsEnabled) {
+    const ids = new Set(attentionSessions);
+    for (const id of responseReadySessions) ids.add(id);
+    n = ids.size;
+  }
+  try { window.api.setAttentionCount(n); }
+  catch (e) { console.error('[updateAttentionBadge] badge bridge failed', e); }
+}
+
 // Central activity dispatcher
 function setActivity(sessionId, active) {
   if (responseReadySessions.has(sessionId)) {
@@ -194,6 +289,9 @@ function setActivity(sessionId, active) {
         item.classList.remove('cli-busy');
         item.classList.add('response-ready');
       }
+      playNotifSound('finished'); // #66
+      notifyOS(sessionId, 'finished');
+      updateAttentionBadge();
     }
   }
 
@@ -216,6 +314,7 @@ function clearUnread(sessionId) {
   if (item) {
     item.classList.remove('response-ready');
   }
+  updateAttentionBadge();
 }
 
 function clearNotifications(sessionId) {
@@ -223,6 +322,7 @@ function clearNotifications(sessionId) {
   attentionSessions.delete(sessionId);
   const item = document.querySelector(`.session-item[data-session-id="${sessionId}"]`);
   if (item) item.classList.remove('needs-attention');
+  updateAttentionBadge();
 }
 // Terminal themes, utils (cleanDisplayName, formatDate, escapeHtml, shellEscape)
 // are defined in terminal-themes.js and utils.js (loaded before app.js).
@@ -390,9 +490,17 @@ window.api.onTerminalNotification((sessionId, message) => {
   // 3. "Claude needs your permission to use {tool}"   → permission, needs your
   // 4. "Claude Code wants to enter plan mode"         → wants to enter
   if (/attention|approval|permission|needs your|wants to enter/i.test(message) && sessionId !== activeSessionId) {
+    // Ne notifier/chimer qu'à la PREMIERE entrée en attention (le CLI peut
+    // réémettre l'OSC 9 plusieurs fois pour la même session -> pas de spam).
+    const isNewAttention = !attentionSessions.has(sessionId);
     attentionSessions.add(sessionId);
     const item = document.querySelector(`.session-item[data-session-id="${sessionId}"]`);
     if (item) item.classList.add('needs-attention');
+    if (isNewAttention) {
+      playNotifSound('attention'); // #66
+      notifyOS(sessionId, 'attention');
+      updateAttentionBadge();
+    }
   } else if (/waiting for your input/i.test(message)) {
     // "Claude is waiting for your input" — delayed idle notification, mark response-ready
     setActivity(sessionId, false);
@@ -409,6 +517,15 @@ window.api.onTerminalNotification((sessionId, message) => {
 window.api.onCliBusyState((sessionId, busy) => {
   setActivity(sessionId, busy);
 });
+
+// Clic sur une notification macOS -> ouvrir/focaliser la session concernée
+if (window.api.onFocusSession) {
+  window.api.onFocusSession((sessionId) => {
+    const s = sessionMap.get(sessionId);
+    if (s) openSession(s);
+    else console.warn('[focus-session] unknown session', sessionId);
+  });
+}
 
 // --- Single entry point for all sidebar renders ---
 // resort=true: re-sort items by priority+time (use for user-initiated actions)
@@ -641,6 +758,7 @@ function updateRunningIndicators() {
       attentionSessions.delete(id);
       responseReadySessions.delete(id);
       sessionBusyState.delete(id);
+      updateAttentionBadge();
     }
     const dot = item.querySelector('.session-status-dot');
     if (dot) dot.classList.toggle('running', running);
@@ -1164,6 +1282,9 @@ setTimeout(() => {
     if (global.appearance) {
       window._applyAppearance(global.appearance);
     }
+    window._setSoundNotifications(global.soundNotifications);
+    window._setSystemNotifications(global.systemNotifications);
+    window._setOpenSessionsReadOnly(global.openSessionsReadOnly);
     window._applyTabVisibility(global);
   }
 })();

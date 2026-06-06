@@ -72,12 +72,14 @@ function makeCollapsible(className, headerText, bodyContent, startExpanded) {
 // --- Tool use rendering ---
 // Renders tool calls in a bullet + indented content style matching Claude Code's terminal.
 
-function toolBlock(color, label, summary, content) {
+// `kind` -> classe CSS de couleur de puce (theme-aware Catppuccin, cf. style.css)
+//   neutral | search | edit | write | bash | agent
+function toolBlock(kind, label, summary, content) {
   const el = document.createElement('div');
   el.className = 'jsonl-tool-block';
   const header = document.createElement('div');
   header.className = 'jsonl-tool-header';
-  header.innerHTML = '<span class="jsonl-tool-bullet" style="color:' + color + '">●</span>'
+  header.innerHTML = '<span class="jsonl-tool-bullet jsonl-tool-bullet--' + kind + '">●</span>'
     + '<span class="jsonl-tool-name">' + escapeHtml(label) + '</span>'
     + (summary ? '<span class="jsonl-tool-summary">' + summary + '</span>' : '');
   el.appendChild(header);
@@ -106,7 +108,7 @@ function renderToolUse(block) {
     try { return renderMcpAction(name, input, block); } catch {}
   }
   // Default: collapsible JSON
-  return toolBlock('#8888a0', name, '', makeCollapsible('jsonl-tool-result', 'Input', input, true));
+  return toolBlock('neutral', name, '', makeCollapsible('jsonl-tool-result', 'Input', input, true));
 }
 
 function renderMcpAction(name, input, block) {
@@ -148,7 +150,7 @@ function renderMcpAction(name, input, block) {
     content = pre;
   }
 
-  return toolBlock('#c090e0', label, summary, content);
+  return toolBlock('search', label, summary, content);
 }
 
 function shortPath(p) {
@@ -163,7 +165,7 @@ const toolRenderers = {
       const start = input.offset || 0;
       range = input.limit ? `:${start}-${start + input.limit}` : `:${start}`;
     }
-    return toolBlock('#8888a0', 'Read', '<code>' + escapeHtml(shortPath(path) + range) + '</code>', null);
+    return toolBlock('neutral', 'Read', '<code>' + escapeHtml(shortPath(path) + range) + '</code>', null);
   },
 
   Edit(input) {
@@ -182,7 +184,7 @@ const toolRenderers = {
       diff.innerHTML = html;
       content = diff;
     }
-    return toolBlock('#e0a040', 'Edit', '<code>' + escapeHtml(shortPath(path)) + '</code>', content);
+    return toolBlock('edit', 'Edit', '<code>' + escapeHtml(shortPath(path)) + '</code>', content);
   },
 
   Write(input) {
@@ -193,7 +195,7 @@ const toolRenderers = {
     if (input.content) {
       content = makeCollapsible('jsonl-tool-result', 'Content', input.content, true);
     }
-    return toolBlock('#60c060', 'Write', detail, content);
+    return toolBlock('write', 'Write', detail, content);
   },
 
   Bash(input) {
@@ -201,7 +203,7 @@ const toolRenderers = {
     const pre = document.createElement('pre');
     pre.className = 'jsonl-tool-cmd-block';
     pre.textContent = cmd;
-    return toolBlock('#80c0e0', 'Bash', null, pre);
+    return toolBlock('bash', 'Bash', null, pre);
   },
 
   Grep(input) {
@@ -209,12 +211,12 @@ const toolRenderers = {
     const path = input.path || '';
     const sp = path ? shortPath(path) : '';
     const summary = '<code>' + escapeHtml(pattern) + (sp ? ' in ' + escapeHtml(sp) : '') + '</code>';
-    return toolBlock('#c090e0', 'Grep', summary, null);
+    return toolBlock('search', 'Grep', summary, null);
   },
 
   Glob(input) {
     const pattern = input.pattern || '';
-    return toolBlock('#c090e0', 'Glob', '<code>' + escapeHtml(pattern) + '</code>', null);
+    return toolBlock('search', 'Glob', '<code>' + escapeHtml(pattern) + '</code>', null);
   },
 
   Agent(input, block) {
@@ -224,7 +226,7 @@ const toolRenderers = {
     const summary = caretSpan
       + (type ? '<span class="jsonl-tool-detail">' + escapeHtml(type) + '</span> ' : '')
       + escapeHtml(desc);
-    const el = toolBlock('#f0a050', 'Agent', summary, null);
+    const el = toolBlock('agent', 'Agent', summary, null);
     el.classList.add('jsonl-agent-expandable');
     // Capture context at render time
     const parentSessionId = currentViewerSessionId;
@@ -302,7 +304,7 @@ function renderLocalCommand({ cmd, output }) {
   pre.className = 'jsonl-tool-cmd-block';
   pre.textContent = cmd;
 
-  const el = toolBlock('#80c0e0', 'Bash', '<span class="jsonl-tool-detail">local</span>', pre);
+  const el = toolBlock('bash', 'Bash', '<span class="jsonl-tool-detail">local</span>', pre);
 
   if (output) {
     let contentEl = el.querySelector('.jsonl-tool-content');

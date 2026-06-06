@@ -74,6 +74,13 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('status-update', (_event, text, type) => callback(text, type));
   },
 
+  // Native OS notifications + dock badge
+  notifySession: (payload) => ipcRenderer.send('notify-session', payload),
+  setAttentionCount: (count) => ipcRenderer.send('set-attention-count', count),
+  onFocusSession: (callback) => {
+    ipcRenderer.on('focus-session', (_event, sessionId) => callback(sessionId));
+  },
+
   // File drag-and-drop
   getPathForFile: (file) => webUtils.getPathForFile(file),
 

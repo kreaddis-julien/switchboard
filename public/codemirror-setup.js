@@ -5,7 +5,6 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
 import { highlightSelectionMatches } from '@codemirror/search';
-import { dracula } from '@ddietr/codemirror-themes/theme/dracula';
 import { tags } from '@lezer/highlight';
 import { MergeView, unifiedMergeView } from '@codemirror/merge';
 import { javascript } from '@codemirror/lang-javascript';
@@ -22,18 +21,99 @@ import { yaml } from '@codemirror/lang-yaml';
 import { sql } from '@codemirror/lang-sql';
 import { cpp } from '@codemirror/lang-cpp';
 
-const markdownExtras = HighlightStyle.define([
-  { tag: tags.monospace, color: '#8BE9FD' },
-]);
+// ── Catppuccin editor themes (Mocha dark / Latte light) ──────────────
+// L'éditeur suit l'apparence de l'app. Un unique Compartment partagé sert de clé
+// à toutes les vues ; _applyCmTheme() les reconfigure quand l'apparence change
+// (mode auto inclus). Remplace l'ancien thème Dracula figé.
+const MOCHA = {
+  base: '#1e1e2e', mantle: '#181825', text: '#cdd6f4', overlay0: '#6c7086',
+  overlay1: '#7f849c', accent: '#b4befe', selection: '#414458',
+  selectionMatch: '#3e4058', activeLine: 'rgba(180,190,254,0.06)',
+  bracket: 'rgba(137,180,250,0.30)', mauve: '#cba6f7', blue: '#89b4fa',
+  sky: '#89dceb', peach: '#fab387', yellow: '#f9e2af', green: '#a6e3a1', red: '#f38ba8',
+};
+const LATTE = {
+  base: '#eff1f5', mantle: '#e6e9ef', text: '#4c4f69', overlay0: '#9ca0b0',
+  overlay1: '#8c8fa1', accent: '#7287fd', selection: '#bcc0cc',
+  selectionMatch: '#ccd0da', activeLine: 'rgba(114,135,253,0.08)',
+  bracket: 'rgba(30,102,245,0.25)', mauve: '#8839ef', blue: '#1e66f5',
+  sky: '#04a5e5', peach: '#fe640b', yellow: '#df8e1d', green: '#40a02b', red: '#d20f39',
+};
 
+function buildCmTheme(p, dark) {
+  const ui = EditorView.theme({
+    '&': { color: p.text, backgroundColor: p.base },
+    '.cm-content': { caretColor: p.accent },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: p.accent },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: p.selection },
+    '.cm-gutters': { backgroundColor: p.mantle, color: p.overlay0, border: 'none' },
+    '.cm-activeLine': { backgroundColor: p.activeLine },
+    '.cm-activeLineGutter': { backgroundColor: p.activeLine, color: p.overlay1 },
+    '.cm-lineNumbers .cm-gutterElement': { color: p.overlay0 },
+    '.cm-foldPlaceholder': { backgroundColor: 'transparent', border: 'none', color: p.overlay0 },
+    '.cm-selectionMatch': { backgroundColor: p.selectionMatch },
+    '.cm-matchingBracket, .cm-nonmatchingBracket': { backgroundColor: p.bracket, outline: 'none' },
+  }, { dark });
+  const hl = HighlightStyle.define([
+    { tag: tags.keyword, color: p.mauve },
+    { tag: [tags.name, tags.deleted, tags.character, tags.propertyName, tags.macroName], color: p.text },
+    { tag: [tags.function(tags.variableName), tags.labelName], color: p.blue },
+    { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: p.peach },
+    { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: p.yellow },
+    { tag: [tags.operator, tags.operatorKeyword, tags.url, tags.escape, tags.regexp, tags.special(tags.string)], color: p.sky },
+    { tag: tags.monospace, color: p.sky },
+    { tag: [tags.meta, tags.comment], color: p.overlay1, fontStyle: 'italic' },
+    { tag: tags.strong, fontWeight: 'bold' },
+    { tag: tags.emphasis, fontStyle: 'italic' },
+    { tag: tags.strikethrough, textDecoration: 'line-through' },
+    { tag: tags.heading, fontWeight: 'bold', color: p.red },
+    { tag: tags.link, color: p.sky, textDecoration: 'underline' },
+    { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: p.peach },
+    { tag: [tags.processingInstruction, tags.string, tags.inserted], color: p.green },
+    { tag: tags.invalid, color: p.red },
+  ]);
+  return [ui, syntaxHighlighting(hl)];
+}
+
+const catppuccinMocha = buildCmTheme(MOCHA, true);
+const catppuccinLatte = buildCmTheme(LATTE, false);
+const cmTheme = new Compartment();
+const _cmViews = new Set();
+
+function currentCmTheme() {
+  const dt = document.documentElement.getAttribute('data-theme');
+  const light = dt === 'light'
+    || (dt !== 'dark' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  return light ? catppuccinLatte : catppuccinMocha;
+}
+
+function _registerCmView(view) {
+  if (!view) return view;
+  _cmViews.add(view);
+  const origDestroy = view.destroy && view.destroy.bind(view);
+  if (origDestroy) view.destroy = () => { _cmViews.delete(view); origDestroy(); };
+  return view;
+}
+
+window._applyCmTheme = () => {
+  const t = currentCmTheme();
+  for (const v of _cmViews) {
+    // Une vue morte/en cours de teardown peut throw : on la retire et on logue
+    // (au lieu d'avaler un éventuel bug de thème), sans bloquer les autres vues.
+    try { v.dispatch({ effects: cmTheme.reconfigure(t) }); }
+    catch (e) { _cmViews.delete(v); console.warn('[cmTheme] reconfigure failed', e); }
+  }
+};
+
+// Layout uniquement ; le dark/light est piloté par cmTheme (Catppuccin).
 const appThemePatch = EditorView.theme({
   '&': { height: '100%', fontSize: '12.5px' },
   '.cm-content': { padding: '20px 8px' },
   '.cm-scroller': {
     scrollbarWidth: 'thin',
-    scrollbarColor: 'rgba(255,255,255,0.08) transparent',
+    scrollbarColor: 'rgba(128,128,140,0.30) transparent',
   },
-}, { dark: true });
+});
 
 // ── Custom floating search bar (matches xterm search bar style) ──────
 
@@ -69,8 +149,8 @@ const searchHighlighter = ViewPlugin.fromClass(class {
 }, { decorations: v => v.decorations });
 
 const cmSearchTheme = EditorView.theme({
-  '.cm-find-match': { backgroundColor: '#515C6A', borderRadius: '2px' },
-  '.cm-find-match-active': { backgroundColor: '#EAA549', borderRadius: '2px' },
+  '.cm-find-match': { backgroundColor: 'rgba(88,91,112,0.55)', borderRadius: '2px' },        // Catppuccin Surface2
+  '.cm-find-match-active': { backgroundColor: 'rgba(250,179,135,0.50)', borderRadius: '2px' }, // Catppuccin Peach
 });
 
 function cmFloatingSearch() {
@@ -335,8 +415,7 @@ function createPlanEditor(parent) {
       cmSaveKeymap,
       cmFloatingSearch(),
       markdown({ base: markdownLanguage, codeLanguages: languages }),
-      dracula,
-      syntaxHighlighting(markdownExtras),
+      cmTheme.of(currentCmTheme()),
       appThemePatch,
       wrapCompartment.of(EditorView.lineWrapping),
     ],
@@ -344,6 +423,7 @@ function createPlanEditor(parent) {
 
   const view = new EditorView({ state, parent });
   view._wrapCompartment = wrapCompartment;
+  _registerCmView(view);
   return view;
 }
 
@@ -406,12 +486,11 @@ function createReadOnlyViewer(parent, content, filename) {
       cmSaveDomHandler,
       cmFloatingSearch(),
       langExt,
-      dracula,
-      syntaxHighlighting(markdownExtras),
+      cmTheme.of(currentCmTheme()),
       appThemePatch,
     ],
   });
-  return new EditorView({ state, parent });
+  return _registerCmView(new EditorView({ state, parent }));
 }
 
 // ── Editable File Viewer (for file panel) ───────────────────────────
@@ -444,8 +523,7 @@ function createEditableViewer(parent, content, filename, { wrap = false } = {}) 
       cmSaveKeymap,
       cmFloatingSearch(),
       langExt,
-      dracula,
-      syntaxHighlighting(markdownExtras),
+      cmTheme.of(currentCmTheme()),
       appThemePatch,
       wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
     ],
@@ -453,6 +531,7 @@ function createEditableViewer(parent, content, filename, { wrap = false } = {}) 
 
   const view = new EditorView({ state, parent });
   view._wrapCompartment = wrapCompartment;
+  _registerCmView(view);
   return view;
 }
 
@@ -471,12 +550,11 @@ function createMergeViewer(parent, originalContent, modifiedContent, filename) {
     cmFindDomHandler,
     cmFloatingSearch(),
     langExt,
-    dracula,
-    syntaxHighlighting(markdownExtras),
+    cmTheme.of(currentCmTheme()),
     appThemePatch,
   ];
 
-  return new MergeView({
+  const mv = new MergeView({
     parent,
     a: {
       doc: originalContent,
@@ -494,6 +572,9 @@ function createMergeViewer(parent, originalContent, modifiedContent, filename) {
     highlightChanges: true,
     collapseUnchanged: { margin: 3, minSize: 4 },
   });
+  _registerCmView(mv.a);
+  _registerCmView(mv.b);
+  return mv;
 }
 
 function createUnifiedMergeViewer(parent, originalContent, modifiedContent, filename) {
@@ -513,8 +594,7 @@ function createUnifiedMergeViewer(parent, originalContent, modifiedContent, file
       cmSaveDomHandler,
       cmFloatingSearch(),
       langExt,
-      dracula,
-      syntaxHighlighting(markdownExtras),
+      cmTheme.of(currentCmTheme()),
       appThemePatch,
       unifiedMergeView({
         original: originalContent,
@@ -525,7 +605,7 @@ function createUnifiedMergeViewer(parent, originalContent, modifiedContent, file
       }),
     ],
   });
-  return new EditorView({ state, parent });
+  return _registerCmView(new EditorView({ state, parent }));
 }
 
 // ── Exports ─────────────────────────────────────────────────────────

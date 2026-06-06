@@ -616,7 +616,18 @@ function rebindSidebarEvents(projects) {
     const session = sessionMap.get(sessionId);
     if (!session) return;
 
-    item.onclick = () => openSession(session);
+    // #25: read-only by default. A dormant Claude session (not open, not running)
+    // opens its transcript read-only; live sessions focus their terminal. The
+    // "Resume" menu action (or a double-click) attaches a terminal.
+    item.onclick = () => {
+      if (openSessionsReadOnly && session.type !== 'terminal'
+          && !openSessions.has(session.sessionId) && !activePtyIds.has(session.sessionId)) {
+        showJsonlViewer(session);
+      } else {
+        openSession(session);
+      }
+    };
+    item.ondblclick = () => openSession(session);
 
     const pin = item.querySelector('.session-pin');
     if (pin) {
@@ -638,6 +649,14 @@ function rebindSidebarEvents(projects) {
       stopBtn.onclick = (e) => {
         e.stopPropagation();
         confirmAndStopSession(session.sessionId);
+      };
+    }
+
+    const resumeBtn = item.querySelector('.session-resume-btn');
+    if (resumeBtn) {
+      resumeBtn.onclick = (e) => {
+        e.stopPropagation();
+        openSession(session);
       };
     }
 
@@ -806,18 +825,27 @@ function buildSessionItem(session) {
   jsonlBtn.title = 'View messages';
   jsonlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>';
 
+  const resumeBtn = document.createElement('button');
+  resumeBtn.className = 'session-resume-btn';
+  resumeBtn.title = 'Resume (attach terminal)';
+  resumeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
   const launchConfigBtn = document.createElement('button');
   launchConfigBtn.className = 'session-launch-config-btn';
   launchConfigBtn.title = 'Resume with config';
   launchConfigBtn.innerHTML = ICONS.launchConfig(14);
 
   // Labels: the actions render as a vertical menu opened via the "..." button.
+  resumeBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Resume</span>');
   stopBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Stop</span>');
   forkBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Fork</span>');
   jsonlBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">View messages</span>');
   archiveBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + (session.archived ? 'Unarchive' : 'Archive') + '</span>');
   launchConfigBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Resume with config</span>');
 
+  if (session.type !== 'terminal') {
+    actions.appendChild(resumeBtn);
+  }
   actions.appendChild(stopBtn);
   if (session.type !== 'terminal') {
     actions.appendChild(forkBtn);

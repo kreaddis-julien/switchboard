@@ -24,8 +24,8 @@ const CLOSE_ICON = '<svg stroke="currentColor" fill="currentColor" stroke-width=
 function flashButtonText(btn, text, duration = 1200) {
   if (btn.classList.contains('fp-icon-btn')) {
     // Icon button — flash color instead of replacing content
-    btn.style.color = '#3ecf5a';
-    btn.style.borderColor = 'rgba(62,207,90,0.4)';
+    btn.style.color = 'var(--ok)';
+    btn.style.borderColor = 'rgb(var(--ok-rgb) / 0.4)';
     setTimeout(() => { btn.style.color = ''; btn.style.borderColor = ''; }, duration);
   } else {
     const original = btn.innerHTML;

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell } = require('electron');
 const { Worker } = require('worker_threads');
 const path = require('path');
 const fs = require('fs');
@@ -414,6 +414,29 @@ function openExternalOnce(url) {
 ipcMain.handle('open-external', (_event, url) => {
   log.info('[open-external IPC]', url);
   return openExternalOnce(url);
+});
+
+// --- IPC: native OS notifications + dock badge ---
+ipcMain.on('notify-session', (_event, payload) => {
+  try {
+    if (!Notification.isSupported()) return;
+    const { title, body, sessionId } = payload || {};
+    const n = new Notification({ title: title || 'Switchboard', body: body || '', silent: true });
+    n.on('click', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        if (sessionId) mainWindow.webContents.send('focus-session', sessionId);
+      }
+    });
+    n.show();
+  } catch (e) { log.warn('[notify-session]', e?.message || e); }
+});
+
+ipcMain.on('set-attention-count', (_event, count) => {
+  try { app.setBadgeCount(Math.max(0, parseInt(count, 10) || 0)); }
+  catch (e) { log.warn('[set-attention-count]', e?.message || e); }
 });
 
 // --- IPC: MCP bridge ---

@@ -76,6 +76,9 @@
     const showPlansTabValue = fieldValue('showPlansTab', true);
     const showMemoryTabValue = fieldValue('showMemoryTab', true);
     const showStatsTabValue = fieldValue('showStatsTab', true);
+    const soundNotificationsValue = fieldValue('soundNotifications', true);
+    const systemNotificationsValue = fieldValue('systemNotifications', true);
+    const openReadOnlyValue = fieldValue('openSessionsReadOnly', true);
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
@@ -226,6 +229,36 @@
 
         <div class="settings-field">
           <div class="settings-field-info">
+            <span class="settings-label">Sound Notifications</span>
+            <div class="settings-description">Play a chime when a non-focused session finishes a run or needs your attention</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-sound-notif" ${soundNotificationsValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">System Notifications</span>
+            <div class="settings-description">macOS Notification Center alert (click to focus the session) + a dock badge counting sessions that need attention</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-system-notif" ${systemNotificationsValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
+            <span class="settings-label">Open Sessions Read-Only</span>
+            <div class="settings-description">Clicking a dormant session opens its transcript (read-only). Use "Resume" in the ⋯ menu, or double-click, to attach a terminal</div>
+          </div>
+          <div class="settings-field-control">
+            <label class="settings-toggle"><input type="checkbox" id="sv-open-readonly" ${openReadOnlyValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <div class="settings-field-info">
             <span class="settings-label">Terminal Theme</span>
             <div class="settings-description">Color theme for terminal sessions</div>
           </div>
@@ -356,6 +389,9 @@
         settings.showPlansTab = settingsViewerBody.querySelector('#sv-show-plans').checked;
         settings.showMemoryTab = settingsViewerBody.querySelector('#sv-show-memory').checked;
         settings.showStatsTab = settingsViewerBody.querySelector('#sv-show-stats').checked;
+        settings.soundNotifications = settingsViewerBody.querySelector('#sv-sound-notif').checked;
+        settings.systemNotifications = settingsViewerBody.querySelector('#sv-system-notif').checked;
+        settings.openSessionsReadOnly = settingsViewerBody.querySelector('#sv-open-readonly').checked;
         settings.mcpEmulation = settingsViewerBody.querySelector('#sv-mcp-emulation').checked;
         settings.shellProfile = settingsViewerBody.querySelector('#sv-shell-profile').value || 'auto';
       }
@@ -382,6 +418,15 @@
         if (typeof window._applyAppearance === 'function') {
           window._applyAppearance(settings.appearance);
         }
+        if (typeof window._setSoundNotifications === 'function') {
+          window._setSoundNotifications(settings.soundNotifications);
+        }
+        if (typeof window._setSystemNotifications === 'function') {
+          window._setSystemNotifications(settings.systemNotifications);
+        }
+        if (typeof window._setOpenSessionsReadOnly === 'function') {
+          window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
+        }
         if (typeof window._applyTabVisibility === 'function') {
           window._applyTabVisibility(settings);
         }
@@ -400,8 +445,9 @@
 
       const saveBtn = settingsViewerBody.querySelector('#sv-save-btn');
       saveBtn.textContent = '✓ Saved';
-      saveBtn.style.background = '#2ea043';
-      saveBtn.style.color = '#fff';
+      // Catppuccin Green, theme-aware ; --c-1e1e2e (base) flips dark/light pour le contraste du texte
+      saveBtn.style.background = 'var(--ok)';
+      saveBtn.style.color = 'var(--c-1e1e2e)';
       setTimeout(() => closeSettingsViewer(), 600);
     });
 

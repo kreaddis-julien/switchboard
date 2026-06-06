@@ -232,7 +232,9 @@ function createTerminalEntry(session) {
   container.appendChild(searchBar);
   const searchInput = searchBar.querySelector('.terminal-search-input');
   const searchCount = searchBar.querySelector('.terminal-search-count');
-  const searchOpts = { decorations: { matchBackground: '#515C6A', activeMatchBackground: '#EAA549', matchOverviewRuler: '#515C6A', activeMatchColorOverviewRuler: '#EAA549' } };
+  // Surlignage Catppuccin translucide -> lisible sur terminal clair (Latte) comme sombre (Mocha) ;
+  // marques de l'overview ruler en tons pleins (Overlay/Peach) visibles sur les deux.
+  const searchOpts = { decorations: { matchBackground: 'rgba(137,150,178,0.30)', activeMatchBackground: 'rgba(250,179,135,0.50)', matchOverviewRuler: '#6c7086', activeMatchColorOverviewRuler: '#fab387' } };
 
   function openSearchBar() {
     searchBar.style.display = 'flex';
