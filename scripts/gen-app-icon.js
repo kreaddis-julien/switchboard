@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const S = 1024;
 const WHITE = '#d7d9e0'; // soft off-white / light grey (not pure white)
-const ACCENT = '#0096ff'; // single accent (macOS Finder blue): a live session
+const ACCENT = '#b7e3ff'; // single accent (macOS Finder LIGHT blue): a live session
 
 function squircle(ctx, size, n = 5) {
   const c = size / 2, a = size / 2; ctx.beginPath();
