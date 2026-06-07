@@ -659,7 +659,14 @@ function renderJsonlEntry(entry, toolResultMap) {
 }
 
 async function showJsonlViewer(session) {
-  const result = await window.api.readSessionJsonl(session.sessionId);
+  // Subagent sessions (sub:<parent>:<agentId>) live at <folder>/<parent>/subagents/
+  // agent-<id>.jsonl, not as a flat <folder>/<sessionId>.jsonl — route them to the
+  // subagent reader, otherwise readSessionJsonl builds a bogus "sub:...jsonl" path
+  // and fails with ENOENT.
+  const isSub = !!(session.parentSessionId && session.agentId);
+  const result = isSub
+    ? await window.api.readSubagentJsonl(session.parentSessionId, session.agentId)
+    : await window.api.readSessionJsonl(session.sessionId);
   hideAllViewers();
   placeholder.style.display = 'none';
   terminalArea.style.display = 'none';

@@ -196,6 +196,8 @@ window._setSystemNotifications = (v) => {
 };
 let openSessionsReadOnly = true;
 window._setOpenSessionsReadOnly = (v) => { openSessionsReadOnly = v !== false; };
+let showSubagentSessions = true;
+window._setShowSubagentSessions = (v) => { showSubagentSessions = v !== false; };
 
 let _audioCtx = null;
 function _audio() {
@@ -1327,6 +1329,7 @@ setTimeout(() => {
     window._setSoundNotifications(global.soundNotifications);
     window._setSystemNotifications(global.systemNotifications);
     window._setOpenSessionsReadOnly(global.openSessionsReadOnly);
+    window._setShowSubagentSessions(global.showSubagentSessions);
     if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons, global.toolbarOrder);
     window._applyTabVisibility(global);
   }

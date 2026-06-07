@@ -904,7 +904,7 @@ function buildSessionItem(session) {
   // "N subsessions" toggle. The parent stays directly clickable; subagents are
   // siblings inside the wrapper (so clicking one doesn't also open the parent).
   const subs = _subagentsByParent.get(session.sessionId);
-  if (subs && subs.length) {
+  if (subs && subs.length && showSubagentSessions) {
     const wrap = document.createElement('div');
     wrap.className = 'session-with-subs';
     wrap.id = 'sw-' + session.sessionId;

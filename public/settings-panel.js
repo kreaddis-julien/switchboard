@@ -80,6 +80,7 @@
     const showPlansTabValue = fieldValue('showPlansTab', true);
     const showMemoryTabValue = fieldValue('showMemoryTab', true);
     const showStatsTabValue = fieldValue('showStatsTab', true);
+    const showSubagentSessionsValue = fieldValue('showSubagentSessions', true);
     const soundNotificationsValue = fieldValue('soundNotifications', true);
     const systemNotificationsValue = fieldValue('systemNotifications', true);
     const openReadOnlyValue = fieldValue('openSessionsReadOnly', true);
@@ -191,6 +192,7 @@
           ${row('Show Plans Tab', 'Show the Plans tab in the sidebar', toggle('sv-show-plans', showPlansTabValue))}
           ${row('Show Agent Files Tab', 'Show the Agent Files (memory) tab in the sidebar', toggle('sv-show-memory', showMemoryTabValue))}
           ${row('Show Stats Tab', 'Show the Stats tab in the sidebar', toggle('sv-show-stats', showStatsTabValue))}
+          ${row('Show Subagent Sessions', 'Nest subagent transcripts under their parent ("N subsessions"). Off hides them from the sidebar entirely.', toggle('sv-show-subagents', showSubagentSessionsValue))}
         </div>
 
         <div class="settings-pane" data-cat="toolbar">
@@ -282,6 +284,7 @@
         if (q('sv-show-plans')) settings.showPlansTab = q('sv-show-plans').checked;
         if (q('sv-show-memory')) settings.showMemoryTab = q('sv-show-memory').checked;
         if (q('sv-show-stats')) settings.showStatsTab = q('sv-show-stats').checked;
+        if (q('sv-show-subagents')) settings.showSubagentSessions = q('sv-show-subagents').checked;
         // Toolbar placement + custom order (row order in the draggable list)
         const tbList = q('sv-toolbar-list');
         if (tbList) {
@@ -311,6 +314,7 @@
         if (typeof window._setSoundNotifications === 'function') window._setSoundNotifications(settings.soundNotifications);
         if (typeof window._setSystemNotifications === 'function') window._setSystemNotifications(settings.systemNotifications);
         if (typeof window._setOpenSessionsReadOnly === 'function') window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
+        if (typeof window._setShowSubagentSessions === 'function') window._setShowSubagentSessions(settings.showSubagentSessions);
         if (settings.toolbarIcons && typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(settings.toolbarIcons, settings.toolbarOrder);
         if (typeof window._applyTabVisibility === 'function') window._applyTabVisibility(settings);
         if (typeof refreshSidebar === 'function') refreshSidebar();

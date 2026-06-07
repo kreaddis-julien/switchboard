@@ -69,7 +69,7 @@ For Windows/Linux, see [Building](#building).
 **Sidebar & UI**
 - Session actions live behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no accidental stop/fork on a mis-hover.
 - **Settings** opens from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
-- **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers.
+- **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path).
 - **Open sessions read-only by default** — clicking a dormant session opens its transcript without attaching a terminal; a **Resume** action (or double-click) attaches one. Addresses upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
 - **Project groups** — assign a project to a named group (project settings → Group); the sidebar renders grouped projects under a labeled divider.
