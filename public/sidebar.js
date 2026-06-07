@@ -302,6 +302,13 @@ function renderProjects(projects, resort) {
     return sessionsList;
   }
 
+  // Project groups: order so same-group projects are adjacent (named groups first,
+  // ungrouped last); a divider is inserted before each group below. Stable sort
+  // preserves the existing recency order within each group / the ungrouped block.
+  const groupKey = (p) => p.group || '￿';
+  projects = [...projects].sort((a, b) => groupKey(a).localeCompare(groupKey(b)));
+  let lastRenderedGroup = null;
+
   for (const project of projects) {
     // Skip worktree projects — they'll be rendered nested under their parent
     if (worktreeSet.has(project.projectPath)) continue;
@@ -359,6 +366,15 @@ function renderProjects(projects, resort) {
       }
     }
 
+    if (project.pathMissing) {
+      header.classList.add('path-missing');
+      const warn = document.createElement('span');
+      warn.className = 'project-missing-badge';
+      warn.title = 'Project folder not found on disk — open project settings (gear) to Relocate it';
+      warn.textContent = '!';
+      header.appendChild(warn);
+    }
+
     group.appendChild(header);
     group.appendChild(sessionsList);
 
@@ -414,6 +430,15 @@ function renderProjects(projects, resort) {
       wtGroup.appendChild(wtSessionsList);
       sessionsList.appendChild(wtGroup);
     }
+
+    if (project.group && project.group !== lastRenderedGroup) {
+      const divider = document.createElement('div');
+      divider.className = 'project-group-divider';
+      divider.id = 'grp-' + folderId(project.group);
+      divider.textContent = project.group;
+      newSidebar.appendChild(divider);
+    }
+    lastRenderedGroup = project.group || null;
 
     newSidebar.appendChild(group);
   }

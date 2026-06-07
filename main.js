@@ -393,6 +393,39 @@ ipcMain.handle('remove-project', (_event, projectPath) => {
   }
 });
 
+// --- IPC: remap-project (#35) — point a moved/renamed project at a new path ---
+ipcMain.handle('remap-project', (_event, oldPath, newPath) => {
+  try {
+    const global = getSetting('global') || {};
+    const remap = global.projectPathRemap || {};
+    if (newPath && newPath !== oldPath) remap[oldPath] = newPath;
+    else delete remap[oldPath]; // clearing the remap
+    global.projectPathRemap = remap;
+    setSetting('global', global);
+    notifyRendererProjectsChanged();
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+// --- IPC: set-project-group — assign/clear a sidebar group for a project ---
+ipcMain.handle('set-project-group', (_event, projectPath, group) => {
+  try {
+    const global = getSetting('global') || {};
+    const groups = global.projectGroups || {};
+    const g = (group || '').trim();
+    if (g) groups[projectPath] = g;
+    else delete groups[projectPath];
+    global.projectGroups = groups;
+    setSetting('global', global);
+    notifyRendererProjectsChanged();
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 // --- IPC: get-projects ---
 // Open an external URL, collapsing duplicate requests for the same URL within a
 // short window. A terminal URL can be matched by BOTH xterm's OSC 8 link provider

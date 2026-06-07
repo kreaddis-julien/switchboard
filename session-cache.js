@@ -197,6 +197,11 @@ function buildProjectsFromCache(showArchived) {
   const cachedRows = getAllCached();
   const global = getSetting('global') || {};
   const hiddenProjects = new Set(global.hiddenProjects || []);
+  // #35 remap: a session's projectPath comes from its JSONL cwd; if the repo moved,
+  // the user can remap old path -> new path (persisted in settings, applied here).
+  const remap = global.projectPathRemap || {};
+  const projectGroups = global.projectGroups || {};
+  const pathExists = (p) => { try { return !!p && fs.existsSync(p); } catch { return false; } };
 
   // Group by projectPath, not on-disk folder name. Multiple ~/.claude/projects/<folder>/
   // directories can resolve to the same projectPath (Claude Code's folder-name encoding
@@ -208,7 +213,8 @@ function buildProjectsFromCache(showArchived) {
   const projectMap = new Map();
   for (const row of cachedRows) {
     if (!row.projectPath) continue;
-    if (hiddenProjects.has(row.projectPath)) continue;
+    const effPath = remap[row.projectPath] || row.projectPath;
+    if (hiddenProjects.has(effPath) || hiddenProjects.has(row.projectPath)) continue;
     const meta = metaMap.get(row.sessionId);
     const s = {
       sessionId: row.sessionId,
@@ -217,7 +223,7 @@ function buildProjectsFromCache(showArchived) {
       created: row.created,
       modified: row.modified,
       messageCount: row.messageCount,
-      projectPath: row.projectPath,
+      projectPath: effPath,
       slug: row.slug || null,
       aiTitle: row.aiTitle || null,
       parentSessionId: row.parentSessionId || null,
@@ -229,14 +235,14 @@ function buildProjectsFromCache(showArchived) {
       archived: meta?.archived || 0,
     };
     if (!showArchived && s.archived) continue;
-    if (!projectMap.has(row.projectPath)) {
-      projectMap.set(row.projectPath, {
-        folder: encodeProjectPath(row.projectPath),
-        projectPath: row.projectPath,
+    if (!projectMap.has(effPath)) {
+      projectMap.set(effPath, {
+        folder: encodeProjectPath(effPath),
+        projectPath: effPath,
         sessions: [],
       });
     }
-    projectMap.get(row.projectPath).sessions.push(s);
+    projectMap.get(effPath).sessions.push(s);
   }
 
   // Include empty project directories (no sessions yet). Resolve folder→projectPath
@@ -293,6 +299,8 @@ function buildProjectsFromCache(showArchived) {
   const projects = [];
   for (const proj of projectMap.values()) {
     proj.sessions.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    proj.pathMissing = !pathExists(proj.projectPath); // #35: repo moved/renamed
+    proj.group = projectGroups[proj.projectPath] || null;
     projects.push(proj);
   }
 

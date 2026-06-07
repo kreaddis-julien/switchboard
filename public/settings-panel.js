@@ -118,7 +118,12 @@
         { cat: 'cli', label: 'Claude CLI' },
         { cat: 'project', label: 'Project' },
       ];
+      const currentGroup = (globalSettings.projectGroups || {})[projectPath] || '';
       panes = cliPane + `<div class="settings-pane" data-cat="project">
+        ${row('Group', 'Group this project under a labeled divider in the sidebar (blank = none).',
+          `<input type="text" class="settings-input" id="sv-project-group" placeholder="e.g. Clients" value="${escapeHtml(currentGroup)}" style="width:160px">`)}
+        ${row('Project folder', 'If the repo moved or was renamed, point Switchboard at its new location.',
+          '<button class="settings-relocate-btn" id="sv-relocate-btn">Relocate…</button>')}
         ${row('Hide Project', 'Hides this project from the sidebar. Session files are not deleted.',
           '<button class="settings-remove-btn" id="sv-remove-btn">Hide Project</button>')}
       </div>`;
@@ -325,6 +330,7 @@
     };
 
     settingsViewerBody.querySelectorAll('.settings-pane input, .settings-pane select').forEach((el) => {
+      if (el.id === 'sv-project-group') return; // handled separately (writes projectGroups, not the settings blob)
       if (el.classList.contains('use-global-cb')) {
         const map = { permissionMode: 'sv-perm-mode', worktree: 'sv-worktree', worktreeName: 'sv-worktree-name', chrome: 'sv-chrome', preLaunchCmd: 'sv-pre-launch', addDirs: 'sv-add-dirs' };
         el.addEventListener('change', () => {
@@ -381,6 +387,28 @@
     // Version string
     const verEl = q('sv-current-version');
     if (verEl) window.api.getAppVersion().then((v) => { verEl.textContent = `v${v}`; });
+
+    // Project group (writes global.projectGroups, debounced) + relocate (#35)
+    const groupInput = q('sv-project-group');
+    if (groupInput) {
+      let gt = null;
+      groupInput.addEventListener('input', () => {
+        clearTimeout(gt);
+        gt = setTimeout(async () => {
+          try { await window.api.setProjectGroup(projectPath, groupInput.value); flashSaved(); if (typeof loadProjects === 'function') loadProjects(); }
+          catch (e) { console.error('[settings] set group failed', e); flashSaveError(); }
+        }, 400);
+      });
+    }
+    const relocateBtn = q('sv-relocate-btn');
+    if (relocateBtn) {
+      relocateBtn.addEventListener('click', async () => {
+        const dir = await window.api.browseFolder();
+        if (!dir) return;
+        try { await window.api.remapProject(projectPath, dir); flashSaved(); if (typeof loadProjects === 'function') loadProjects(); }
+        catch (e) { console.error('[settings] relocate failed', e); flashSaveError(); }
+      });
+    }
 
     // Hide project
     const removeBtn = q('sv-remove-btn');
