@@ -13,10 +13,14 @@ let agentMatchCounters = {};
 // unwrap the slash-command / local-command / hook wrapper tags (keep inner text).
 function cleanTranscriptText(text) {
   if (!text) return text;
-  return text
-    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
-    .replace(/<\/?(command-name|command-message|command-args|local-command-stdout|local-command-stderr|user-prompt-submit-hook|bash-input|bash-stdout|bash-stderr|local-command-caveat)\b[^>]*>/gi, '')
-    .trim();
+  // Bounded inner match ({0,20000}) avoids O(n²) rescans on unmatched
+  // <system-reminder> open-tags (ReDoS) in very large blocks.
+  const stripNoise = (seg) => seg
+    .replace(/<system-reminder>[\s\S]{0,20000}?<\/system-reminder>/gi, '')
+    .replace(/<\/?(command-name|command-message|command-args|local-command-stdout|local-command-stderr|user-prompt-submit-hook|bash-input|bash-stdout|bash-stderr|local-command-caveat)\b[^>]*>/gi, '');
+  // Only clean OUTSIDE fenced code blocks, so a message showing these tag names
+  // as a code example keeps them intact.
+  return text.split(/(```[\s\S]*?```)/).map((seg, i) => (i % 2 === 0 ? stripNoise(seg) : seg)).join('').trim();
 }
 
 function renderJsonlText(text) {

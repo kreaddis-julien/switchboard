@@ -119,13 +119,19 @@ const migrations = [
   },
   // v5: Token/usage analytics — per-session metrics extracted from message.usage
   // and tool_use blocks. Clear the cache so a re-index backfills the new columns.
+  // Add only MISSING columns (checked via PRAGMA) instead of catching the
+  // "duplicate column" error — that way a *real* ALTER failure throws and aborts
+  // before db_version is bumped (cacheUpsert hard-depends on these columns, so a
+  // silently half-applied schema would brick boot with no path to re-run).
   (db) => {
+    const existing = new Set(db.prepare('PRAGMA table_info(session_cache)').all().map((c) => c.name));
+    const add = (col, type) => { if (!existing.has(col)) db.exec(`ALTER TABLE session_cache ADD COLUMN ${col} ${type}`); };
     for (const col of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens', 'toolCalls', 'subagentInvocations']) {
-      try { db.exec(`ALTER TABLE session_cache ADD COLUMN ${col} INTEGER DEFAULT 0`); } catch {}
+      add(col, 'INTEGER DEFAULT 0');
     }
-    try { db.exec('ALTER TABLE session_cache ADD COLUMN model TEXT'); } catch {}
-    try { db.exec('DELETE FROM session_cache'); } catch {}
-    try { db.exec('DELETE FROM cache_meta'); } catch {}
+    add('model', 'TEXT');
+    db.exec('DELETE FROM session_cache');
+    db.exec('DELETE FROM cache_meta');
   },
 ];
 

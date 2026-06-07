@@ -464,8 +464,11 @@ function buildStatsSummary(stats, dailyMap) {
 // Token analytics from the JSONL scan cache (per-model + tool/subagent totals).
 async function buildTokenAnalyticsSection() {
   let data;
-  try { data = await window.api.getTokenAnalytics(); } catch { return; }
-  if (!data || data.error || !data.totals) return;
+  try { data = await window.api.getTokenAnalytics(); }
+  catch (e) { console.error('[stats] token analytics IPC failed', e); return; }
+  if (!data) return;
+  if (data.error) { console.error('[stats] token analytics:', data.error); return; }
+  if (!data.totals) return;
   const t = data.totals;
   const totalTokens = t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheCreationTokens;
   if (!totalTokens && !t.toolCalls) return; // nothing scanned yet

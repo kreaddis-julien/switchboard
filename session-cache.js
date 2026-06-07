@@ -171,8 +171,19 @@ function refreshFolder(folder) {
  * the app was closed, or that predates the build which first indexed it, is
  * otherwise never picked up, because the cold-start full scan
  * (populateCacheViaWorker) only runs when the cache is completely empty.
+ *
+ * Throttled: loadProjects() fires get-projects twice per sidebar paint
+ * (showArchived false/true via Promise.all), which would run this readdir/stat
+ * sweep back-to-back. The second pass is idempotent but wasted work; anything
+ * landing inside the window is still caught by the live fs watcher.
+ * (ported from JeanBaptisteRenard/switchboard #38)
  */
+const RECONCILE_THROTTLE_MS = 1000;
+let lastReconcileAt = 0;
 function reconcileCacheFromFilesystem() {
+  const now = Date.now();
+  if (now - lastReconcileAt < RECONCILE_THROTTLE_MS) return;
+  lastReconcileAt = now;
   try {
     const metaMap = getAllFolderMeta();
     const folders = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })
@@ -261,11 +272,12 @@ function buildProjectsFromCache(showArchived) {
         if (projectPath) setFolderMeta(d.name, projectPath, 0);
       }
       if (!projectPath) continue;
-      if (hiddenProjects.has(projectPath)) continue;
-      if (!projectMap.has(projectPath)) {
-        projectMap.set(projectPath, {
-          folder: encodeProjectPath(projectPath),
-          projectPath,
+      const effPath = remap[projectPath] || projectPath;
+      if (hiddenProjects.has(effPath) || hiddenProjects.has(projectPath)) continue;
+      if (!projectMap.has(effPath)) {
+        projectMap.set(effPath, {
+          folder: encodeProjectPath(effPath),
+          projectPath: effPath,
           sessions: [],
         });
       }
@@ -276,18 +288,19 @@ function buildProjectsFromCache(showArchived) {
   for (const [sessionId, session] of activeSessions) {
     if (session.exited || !session.isPlainTerminal) continue;
     if (!session.projectPath) continue;
-    if (hiddenProjects.has(session.projectPath)) continue;
-    if (!projectMap.has(session.projectPath)) {
-      projectMap.set(session.projectPath, {
-        folder: encodeProjectPath(session.projectPath),
-        projectPath: session.projectPath,
+    const effPath = remap[session.projectPath] || session.projectPath;
+    if (hiddenProjects.has(effPath) || hiddenProjects.has(session.projectPath)) continue;
+    if (!projectMap.has(effPath)) {
+      projectMap.set(effPath, {
+        folder: encodeProjectPath(effPath),
+        projectPath: effPath,
         sessions: [],
       });
     }
-    const proj = projectMap.get(session.projectPath);
+    const proj = projectMap.get(effPath);
     if (!proj.sessions.some(s => s.sessionId === sessionId)) {
       proj.sessions.push({
-        sessionId, summary: 'Terminal', firstPrompt: '', projectPath: session.projectPath,
+        sessionId, summary: 'Terminal', firstPrompt: '', projectPath: effPath,
         name: null, starred: 0, archived: 0, messageCount: 0,
         modified: new Date(session._openedAt).toISOString(),
         created: new Date(session._openedAt).toISOString(),

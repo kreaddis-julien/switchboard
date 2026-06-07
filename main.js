@@ -398,8 +398,13 @@ ipcMain.handle('remap-project', (_event, oldPath, newPath) => {
   try {
     const global = getSetting('global') || {};
     const remap = global.projectPathRemap || {};
-    if (newPath && newPath !== oldPath) remap[oldPath] = newPath;
-    else delete remap[oldPath]; // clearing the remap
+    // If oldPath is itself the TARGET of an existing remap (re-relocating an
+    // already-moved project), repoint that original source key — the lookup in
+    // buildProjectsFromCache is single-level, so we must keep the raw key current.
+    const srcKey = Object.keys(remap).find((k) => remap[k] === oldPath);
+    const key = srcKey || oldPath;
+    if (newPath && newPath !== key) remap[key] = newPath;
+    else delete remap[key]; // clearing the remap
     global.projectPathRemap = remap;
     setSetting('global', global);
     notifyRendererProjectsChanged();
@@ -666,6 +671,7 @@ ipcMain.handle('get-token-analytics', () => {
     const models = Object.values(byModel).filter(total).sort((a, b) => total(b) - total(a));
     return { totals: t, models };
   } catch (e) {
+    log.warn('[token-analytics]', e?.message || e);
     return { error: e.message };
   }
 });
