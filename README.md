@@ -78,7 +78,6 @@ For Windows/Linux, see [Building](#building).
 **Behavior & robustness fixes**
 - Session overview removes a session's card when you stop it; archiving a session tears down its open/pending instance so a mis-forked session actually disappears.
 - **Scan reads capped at 2 MB** so a huge `.jsonl` can't OOM the cache scan (the viewer still loads the full file on demand). *(ported from [folknor](https://github.com/folknor/switchboard))*
-- **`Max Visible Sessions` is honored** even when recent sessions are older than the age cutoff (the cutoff now only drives project auto-collapse). *(ported from folknor)*
 - **Throttled cache↔filesystem reconcile** — the sidebar paints with two `get-projects` calls, so the on-disk reconcile sweep is throttled (1 s) to run once per paint instead of twice. *(ported from [JeanBaptisteRenard](https://github.com/JeanBaptisteRenard/switchboard))*
 
 **Curated upstream PRs merged in**

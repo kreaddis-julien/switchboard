@@ -259,12 +259,14 @@ function renderProjects(projects, resort) {
       visible = allItems;
     } else {
       let count = 0;
-      // visibleSessionCount is a guarantee: always show up to N most-recent
-      // sessions. sessionMaxAgeDays governs project auto-collapse (see below),
-      // not this per-session window — gating it here used to silently shrink the
-      // visible list below the configured count when recent sessions were old.
+      // A session shows in the main list if it's running/pinned, OR it's within
+      // the visibleSessionCount most-recent AND newer than sessionMaxAgeDays.
+      // Older sessions are tucked behind "+N older" — that's what makes Max Age
+      // auto-hide stale sessions. (If everything is old, the fallback below keeps
+      // the project from looking empty when expanded.)
+      const ageCutoff = Date.now() - sessionMaxAgeDays * 86400000;
       for (const item of allItems) {
-        if (item.running || item.pinned || count < visibleSessionCount) {
+        if (item.running || item.pinned || (count < visibleSessionCount && item.sortTime >= ageCutoff)) {
           visible.push(item);
           count++;
         } else {
