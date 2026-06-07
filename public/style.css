@@ -3262,6 +3262,7 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
   pointer-events: none;
 }
 .settings-saved-indicator.show { opacity: 1; transform: translateY(0); }
+.settings-saved-indicator.error { color: var(--err); background: rgb(var(--err-rgb) / 0.15); }
 
 .settings-form {
   width: 100%;

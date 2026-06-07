@@ -87,7 +87,7 @@
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
     let shellProfiles = [];
-    try { shellProfiles = await window.api.getShellProfiles(); } catch {}
+    try { shellProfiles = await window.api.getShellProfiles(); } catch (e) { console.warn('[settings] shell profiles unavailable', e); }
 
     const toggle = (id, on, dis = '') => `<label class="settings-toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${dis}><span class="settings-toggle-slider"></span></label>`;
 
@@ -229,9 +229,18 @@
     let savedTimer = null;
     const flashSaved = () => {
       if (!savedEl) return;
+      savedEl.textContent = 'Saved';
+      savedEl.classList.remove('error');
       savedEl.classList.add('show');
       clearTimeout(savedTimer);
       savedTimer = setTimeout(() => savedEl.classList.remove('show'), 1200);
+    };
+    const flashSaveError = () => {
+      if (!savedEl) return;
+      savedEl.textContent = 'Save failed';
+      savedEl.classList.add('show', 'error');
+      clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => savedEl.classList.remove('show'), 3000);
     };
 
     const q = (id) => settingsViewerBody.querySelector('#' + id);
@@ -262,8 +271,8 @@
         if (q('sv-sound-notif')) settings.soundNotifications = q('sv-sound-notif').checked;
         if (q('sv-system-notif')) settings.systemNotifications = q('sv-system-notif').checked;
         if (q('sv-open-readonly')) settings.openSessionsReadOnly = q('sv-open-readonly').checked;
-        if (q('sv-visible-count')) settings.visibleSessionCount = parseInt(q('sv-visible-count').value) || 10;
-        if (q('sv-max-age')) settings.sessionMaxAgeDays = parseInt(q('sv-max-age').value) || 3;
+        if (q('sv-visible-count')) settings.visibleSessionCount = Math.min(100, Math.max(1, parseInt(q('sv-visible-count').value) || 10));
+        if (q('sv-max-age')) settings.sessionMaxAgeDays = Math.min(365, Math.max(1, parseInt(q('sv-max-age').value) || 3));
         if (q('sv-mcp-emulation')) settings.mcpEmulation = q('sv-mcp-emulation').checked;
         if (q('sv-show-plans')) settings.showPlansTab = q('sv-show-plans').checked;
         if (q('sv-show-memory')) settings.showMemoryTab = q('sv-show-memory').checked;
@@ -279,7 +288,15 @@
         }
       }
 
-      await window.api.setSetting(settingsKey, settings);
+      try {
+        await window.api.setSetting(settingsKey, settings);
+      } catch (e) {
+        // Never show "Saved" on a write that didn't happen (settings are
+        // security-relevant, e.g. permissionMode). Surface the failure instead.
+        console.error('[settings] save failed', e);
+        flashSaveError();
+        return;
+      }
 
       if (!isProject) {
         if (settings.visibleSessionCount && typeof window._setVisibleSessionCount === 'function') window._setVisibleSessionCount(settings.visibleSessionCount);
@@ -297,11 +314,14 @@
     }
 
     // Debounced trigger (immediate for toggles/selects, debounced for typing).
-    let debTimer = null;
+    // Saves are serialized on a promise chain so two in-flight saves can't
+    // interleave their read-modify-write of the global settings blob.
+    let debTimer = null, saveChain = Promise.resolve();
+    const runSave = () => { saveChain = saveChain.then(saveSettings).catch((e) => console.error('[settings] save error', e)); };
     const triggerSave = (immediate) => {
       clearTimeout(debTimer);
-      if (immediate) saveSettings();
-      else debTimer = setTimeout(saveSettings, 350);
+      if (immediate) runSave();
+      else debTimer = setTimeout(runSave, 350);
     };
 
     settingsViewerBody.querySelectorAll('.settings-pane input, .settings-pane select').forEach((el) => {
@@ -356,7 +376,7 @@
     }
 
     // Done / close
-    q('sv-done-btn')?.addEventListener('click', () => { saveSettings(); closeSettingsViewer(); });
+    q('sv-done-btn')?.addEventListener('click', () => { runSave(); closeSettingsViewer(); });
 
     // Version string
     const verEl = q('sv-current-version');
@@ -377,7 +397,9 @@
 
   // Close on Escape while the settings viewer is visible.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && settingsViewer.style.display !== 'none' && !settingsViewerBody.querySelector('.sb-modal-overlay')) {
+    // Don't close the settings viewer if a modal (tag editor / bookmarks) is up —
+    // those are appended to document.body, so check there.
+    if (e.key === 'Escape' && settingsViewer.style.display !== 'none' && !document.body.querySelector('.sb-modal-overlay')) {
       closeSettingsViewer();
     }
   });

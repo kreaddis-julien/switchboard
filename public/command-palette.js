@@ -118,6 +118,7 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    if (e._handled) return; // let a focused terminal keep Ctrl+K
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (mod && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();

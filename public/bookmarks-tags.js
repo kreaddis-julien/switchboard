@@ -7,7 +7,10 @@
   const TAGS_KEY = 'sb-session-tags';        // { [sessionId]: [tag,...] }
   const BM_KEY = 'sb-bookmarks';             // [ { sessionId, uuid, preview, ts } ]
 
-  const read = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch { return fallback; } };
+  const read = (k, fallback) => {
+    try { return JSON.parse(localStorage.getItem(k)) || fallback; }
+    catch (e) { console.warn('[bookmarks-tags] corrupt %s, resetting', k, e); return fallback; }
+  };
   const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.error('[bookmarks-tags] persist failed', e); } };
 
   // ---------------- Tags ----------------
@@ -172,9 +175,13 @@
       listEl.appendChild(row);
     });
   }
-  window._openBookmarks = () => (open ? overlay && overlay.remove() : openBookmarks());
+  window._openBookmarks = () => {
+    if (open) { if (overlay) overlay.remove(); overlay = null; open = false; }
+    else openBookmarks();
+  };
 
   window.addEventListener('keydown', (e) => {
+    if (e._handled) return; // let a focused terminal keep Ctrl+B (readline)
     const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (mod && !e.shiftKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {

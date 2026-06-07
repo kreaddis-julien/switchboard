@@ -1499,18 +1499,23 @@ function startProjectsWatcher() {
 // --- IPC: app version ---
 ipcMain.handle('get-app-version', () => app.getVersion());
 
-// --- IPC: auto-updater ---
+// --- IPC: auto-updater (INERT in this fork) ---
+// Auto-update is disabled (we build locally from our own repo; the configured
+// feed points at upstream doctly releases). These handlers stay registered so a
+// stray/regressed caller doesn't crash on a missing handler, but they must never
+// touch the updater — invoking one would otherwise check/install the UPSTREAM
+// build and overwrite this fork. Inert + loud.
 ipcMain.handle('updater-check', () => {
-  if (!autoUpdater) return { available: false, dev: true };
-  return autoUpdater.checkForUpdates();
+  log.warn('[updater] check invoked but auto-update is disabled in this fork');
+  return { available: false, disabled: true };
 });
 ipcMain.handle('updater-download', () => {
-  if (!autoUpdater) return;
-  return autoUpdater.downloadUpdate();
+  log.warn('[updater] download invoked but auto-update is disabled in this fork');
+  return { disabled: true };
 });
 ipcMain.handle('updater-install', () => {
-  if (!autoUpdater) return;
-  autoUpdater.quitAndInstall();
+  log.warn('[updater] install invoked but auto-update is disabled in this fork');
+  return { disabled: true };
 });
 
 // --- IPC: delete-worktree ---
