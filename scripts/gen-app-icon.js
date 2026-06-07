@@ -6,7 +6,7 @@ const { createCanvas } = require('@napi-rs/canvas');
 const fs = require('fs');
 const path = require('path');
 const S = 1024;
-const WHITE = '#f4f5f7';
+const WHITE = '#d7d9e0'; // soft off-white / light grey (not pure white)
 const ACCENT = '#3ddc84'; // single accent: a live session
 
 function squircle(ctx, size, n = 5) {
