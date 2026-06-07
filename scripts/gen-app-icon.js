@@ -41,8 +41,8 @@ const cx = S / 2, cy = S * 0.47, R = S * 0.094, nr = S * 0.078;
 const nodes = [
   { x: cx - S * 0.205, y: cy - S * 0.165, r: nr },
   { x: cx + S * 0.215, y: cy - S * 0.1, r: nr },
-  // active session: slightly larger node on a slightly longer branch -> focal point
-  { x: cx + S * 0.012, y: cy + S * 0.245, r: nr * 1.2, active: true },
+  // active session: same size as the others, on a slightly longer branch
+  { x: cx + S * 0.012, y: cy + S * 0.245, r: nr, active: true },
 ];
 ctx.lineCap = 'round'; ctx.lineWidth = S * 0.044; ctx.strokeStyle = WHITE;
 for (const n of nodes) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(n.x, n.y); ctx.stroke(); }
