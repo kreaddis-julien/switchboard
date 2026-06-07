@@ -4236,3 +4236,14 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
 .toolbar-drag-handle:active { cursor: grabbing; }
 .toolbar-config-label { flex: 1; font-size: 13px; color: var(--c-e0e0e0); }
 .toolbar-place-select { width: 118px; flex-shrink: 0; }
+
+/* JSONL viewer: subtle per-bubble timestamp */
+.jsonl-bubble-ts {
+  display: block;
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--c-6a6a80);
+  opacity: 0.7;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

@@ -8,6 +8,17 @@ let currentViewerSessionId = null;
 // Reset on each showJsonlViewer call. Key: "<contextSessionId>|<desc>|<type>"
 let agentMatchCounters = {};
 
+// Strip Claude Code's internal XML noise from a transcript text block so it
+// doesn't render as escaped clutter: drop <system-reminder> blocks entirely and
+// unwrap the slash-command / local-command / hook wrapper tags (keep inner text).
+function cleanTranscriptText(text) {
+  if (!text) return text;
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+    .replace(/<\/?(command-name|command-message|command-args|local-command-stdout|local-command-stderr|user-prompt-submit-hook|bash-input|bash-stdout|bash-stderr|local-command-caveat)\b[^>]*>/gi, '')
+    .trim();
+}
+
 function renderJsonlText(text) {
   if (window.marked) {
     // Escape XML/HTML-like tags so they render as visible text,
@@ -496,7 +507,9 @@ function renderJsonlEntry(entry, toolResultMap) {
   }
 
   const ts = entry.timestamp;
-  const timeStr = ts ? new Date(ts).toLocaleTimeString() : '';
+  const tsDate = ts ? new Date(ts) : null;
+  const timeStr = tsDate ? tsDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+  const tsFull = tsDate ? tsDate.toLocaleString() : '';
 
   // --- custom-title ---
   if (entry.type === 'custom-title') {
@@ -594,9 +607,11 @@ function renderJsonlEntry(entry, toolResultMap) {
         div.appendChild(imgEl);
         continue;
       }
+      const cleaned = cleanTranscriptText(block.text);
+      if (!cleaned) continue; // block was pure internal-XML noise
       const textEl = document.createElement('div');
       textEl.className = 'jsonl-text';
-      textEl.innerHTML = renderJsonlText(block.text.trim());
+      textEl.innerHTML = renderJsonlText(cleaned);
       div.appendChild(textEl);
     } else if (block.type === 'tool_use') {
       const toolEl = renderToolUse(block);
@@ -626,6 +641,15 @@ function renderJsonlEntry(entry, toolResultMap) {
 
   // Skip entries with no visible content
   if (!div.children.length) return null;
+
+  // Subtle per-bubble timestamp (24h HH:MM; full date on hover)
+  if (timeStr) {
+    const t = document.createElement('span');
+    t.className = 'jsonl-ts jsonl-bubble-ts';
+    t.textContent = timeStr;
+    if (tsFull) t.title = tsFull;
+    div.appendChild(t);
+  }
 
   return div;
 }
