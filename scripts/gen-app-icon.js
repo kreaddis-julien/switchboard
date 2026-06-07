@@ -36,13 +36,14 @@ ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(255,255,255,0.10)'; squircle(
 ctx.restore();
 
 // Switchboard: central hub wired to 3 session nodes (one live = green).
-const cx = S / 2, cy = S * 0.51, R = S * 0.082, nr = S * 0.066;
+// Sits slightly above the geometric center for optical balance.
+const cx = S / 2, cy = S * 0.47, R = S * 0.094, nr = S * 0.078;
 const nodes = [
   { x: cx - S * 0.205, y: cy - S * 0.165 },
   { x: cx + S * 0.215, y: cy - S * 0.1 },
   { x: cx + S * 0.012, y: cy + S * 0.215, active: true },
 ];
-ctx.lineCap = 'round'; ctx.lineWidth = S * 0.04; ctx.strokeStyle = WHITE;
+ctx.lineCap = 'round'; ctx.lineWidth = S * 0.044; ctx.strokeStyle = WHITE;
 for (const n of nodes) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(n.x, n.y); ctx.stroke(); }
 for (const n of nodes) {
   ctx.fillStyle = n.active ? ACCENT : WHITE;
