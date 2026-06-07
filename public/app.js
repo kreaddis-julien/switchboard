@@ -1238,12 +1238,19 @@ initGridObservers();
     const TOOLBAR_DEFAULT = { pin: 'visible', running: 'visible', overview: 'visible', collapse: 'visible', bookmarks: 'visible', today: 'popover', archive: 'popover', resort: 'popover', addProject: 'popover' };
     window._toolbarActions = TOOLBAR_ACTIONS;
     window._toolbarDefault = TOOLBAR_DEFAULT;
-    window._applyToolbarLayout = (placement) => {
+    // placement: { key -> 'visible'|'popover' } ; order: optional [key,...] custom order.
+    window._applyToolbarLayout = (placement, order) => {
       const p = { ...TOOLBAR_DEFAULT, ...(placement || {}) };
-      for (const a of TOOLBAR_ACTIONS) {
+      const known = TOOLBAR_ACTIONS.map((a) => a.key);
+      const keys = (Array.isArray(order) && order.length)
+        ? order.filter((k) => known.includes(k)).concat(known.filter((k) => !order.includes(k)))
+        : known;
+      for (const key of keys) {
+        const a = TOOLBAR_ACTIONS.find((x) => x.key === key);
+        if (!a) continue;
         const el = document.getElementById(a.id);
         if (!el) continue;
-        if (p[a.key] === 'popover') popover.appendChild(el);
+        if (p[key] === 'popover') popover.appendChild(el);
         else filtersRow.insertBefore(el, wrap); // visible, before the "more" button
       }
       // Hide the "more" button entirely when the popover is empty.
@@ -1320,7 +1327,7 @@ setTimeout(() => {
     window._setSoundNotifications(global.soundNotifications);
     window._setSystemNotifications(global.systemNotifications);
     window._setOpenSessionsReadOnly(global.openSessionsReadOnly);
-    if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons);
+    if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons, global.toolbarOrder);
     window._applyTabVisibility(global);
   }
 })();

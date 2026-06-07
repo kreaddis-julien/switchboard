@@ -123,16 +123,22 @@
           '<button class="settings-remove-btn" id="sv-remove-btn">Hide Project</button>')}
       </div>`;
     } else {
-      // Toolbar category: a placement select per action.
+      // Toolbar category: a draggable, re-orderable list with a placement select per action.
       const actions = window._toolbarActions || [];
       const placement = { ...(window._toolbarDefault || {}), ...(current.toolbarIcons || {}) };
-      const toolbarRows = actions.map((a) =>
-        row(a.label, '',
-          `<select class="settings-select" data-toolbar-action="${a.key}">
+      const order = current.toolbarOrder;
+      const orderedActions = (Array.isArray(order) && order.length)
+        ? order.map((k) => actions.find((a) => a.key === k)).filter(Boolean).concat(actions.filter((a) => !order.includes(a.key)))
+        : actions;
+      const toolbarRows = orderedActions.map((a) =>
+        `<div class="toolbar-config-row" draggable="true" data-action="${a.key}">
+          <span class="toolbar-drag-handle" title="Drag to reorder">⠿</span>
+          <span class="toolbar-config-label">${a.label}</span>
+          <select class="settings-select toolbar-place-select" data-toolbar-action="${a.key}">
             <option value="visible" ${placement[a.key] === 'visible' ? 'selected' : ''}>Toolbar</option>
             <option value="popover" ${placement[a.key] !== 'visible' ? 'selected' : ''}>In popover</option>
-          </select>`)
-      ).join('');
+          </select>
+        </div>`).join('');
 
       nav = [
         { cat: 'general', label: 'General' },
@@ -183,8 +189,8 @@
         </div>
 
         <div class="settings-pane" data-cat="toolbar">
-          <div class="settings-pane-hint">Choose which sidebar actions sit directly in the toolbar vs behind the "more" (⋯) popover.</div>
-          ${toolbarRows}
+          <div class="settings-pane-hint">Drag to reorder. Choose whether each action sits in the toolbar or behind the "more" (⋯) popover.</div>
+          <div class="toolbar-config-list" id="sv-toolbar-list">${toolbarRows}</div>
         </div>
 
         ${cliPane}
@@ -262,11 +268,13 @@
         if (q('sv-show-plans')) settings.showPlansTab = q('sv-show-plans').checked;
         if (q('sv-show-memory')) settings.showMemoryTab = q('sv-show-memory').checked;
         if (q('sv-show-stats')) settings.showStatsTab = q('sv-show-stats').checked;
-        // Toolbar placement
-        const toolbarSelects = settingsViewerBody.querySelectorAll('[data-toolbar-action]');
-        if (toolbarSelects.length) {
+        // Toolbar placement + custom order (row order in the draggable list)
+        const tbList = q('sv-toolbar-list');
+        if (tbList) {
+          const rows = [...tbList.querySelectorAll('.toolbar-config-row')];
+          settings.toolbarOrder = rows.map((r) => r.dataset.action);
           const placement = {};
-          toolbarSelects.forEach((s) => { placement[s.dataset.toolbarAction] = s.value; });
+          tbList.querySelectorAll('[data-toolbar-action]').forEach((s) => { placement[s.dataset.toolbarAction] = s.value; });
           settings.toolbarIcons = placement;
         }
       }
@@ -281,7 +289,7 @@
         if (typeof window._setSoundNotifications === 'function') window._setSoundNotifications(settings.soundNotifications);
         if (typeof window._setSystemNotifications === 'function') window._setSystemNotifications(settings.systemNotifications);
         if (typeof window._setOpenSessionsReadOnly === 'function') window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
-        if (settings.toolbarIcons && typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(settings.toolbarIcons);
+        if (settings.toolbarIcons && typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(settings.toolbarIcons, settings.toolbarOrder);
         if (typeof window._applyTabVisibility === 'function') window._applyTabVisibility(settings);
         if (typeof refreshSidebar === 'function') refreshSidebar();
       }
@@ -309,6 +317,43 @@
       const typing = el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'number');
       el.addEventListener(typing ? 'input' : 'change', () => triggerSave(!typing));
     });
+
+    // --- Toolbar list: drag to reorder ---
+    const tbList = q('sv-toolbar-list');
+    if (tbList) {
+      let dragEl = null;
+      const dragAfter = (y) => {
+        const rows = [...tbList.querySelectorAll('.toolbar-config-row:not(.dragging)')];
+        let best = { offset: -Infinity, el: null };
+        for (const child of rows) {
+          const box = child.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > best.offset) best = { offset, el: child };
+        }
+        return best.el;
+      };
+      tbList.querySelectorAll('.toolbar-config-row').forEach((rowEl) => {
+        rowEl.addEventListener('dragstart', (e) => {
+          // Let the placement <select> stay usable — don't start a drag from it.
+          if (e.target.closest('select')) { e.preventDefault(); return; }
+          dragEl = rowEl;
+          rowEl.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        rowEl.addEventListener('dragend', () => {
+          rowEl.classList.remove('dragging');
+          dragEl = null;
+          triggerSave(true);
+        });
+      });
+      tbList.addEventListener('dragover', (e) => {
+        if (!dragEl) return;
+        e.preventDefault();
+        const after = dragAfter(e.clientY);
+        if (after == null) tbList.appendChild(dragEl);
+        else tbList.insertBefore(dragEl, after);
+      });
+    }
 
     // Done / close
     q('sv-done-btn')?.addEventListener('click', () => { saveSettings(); closeSettingsViewer(); });
