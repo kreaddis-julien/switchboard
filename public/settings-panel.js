@@ -193,6 +193,13 @@
           ${row('Show Agent Files Tab', 'Show the Agent Files (memory) tab in the sidebar', toggle('sv-show-memory', showMemoryTabValue))}
           ${row('Show Stats Tab', 'Show the Stats tab in the sidebar', toggle('sv-show-stats', showStatsTabValue))}
           ${row('Show Subagent Sessions', 'Nest subagent transcripts under their parent ("N subsessions"). Off hides them from the sidebar entirely.', toggle('sv-show-subagents', showSubagentSessionsValue))}
+          <div class="settings-field settings-field-block">
+            <div class="settings-field-info">
+              <span class="settings-label">Hidden folders</span>
+              <div class="settings-description">Folders removed from the sidebar via a project's gear → Hide Project. Unhide to bring one back.</div>
+            </div>
+            <div class="settings-hidden-list" id="sv-hidden-projects"></div>
+          </div>
         </div>
 
         <div class="settings-pane" data-cat="toolbar">
@@ -387,6 +394,37 @@
 
     // Done / close
     q('sv-done-btn')?.addEventListener('click', () => { runSave(); closeSettingsViewer(); });
+
+    // Hidden folders management (global scope)
+    const hiddenList = q('sv-hidden-projects');
+    if (hiddenList) {
+      const renderHidden = async () => {
+        let hidden = [];
+        try { hidden = await window.api.getHiddenProjects(); } catch (e) { console.warn('[settings] hidden projects', e); }
+        if (!hidden || !hidden.length) { hiddenList.innerHTML = '<div class="settings-hidden-empty">No hidden folders.</div>'; return; }
+        hiddenList.innerHTML = '';
+        for (const p of hidden) {
+          const r = document.createElement('div');
+          r.className = 'settings-hidden-row';
+          const name = document.createElement('span');
+          name.className = 'settings-hidden-path';
+          name.textContent = p.split('/').filter(Boolean).slice(-2).join('/') || p;
+          name.title = p;
+          const btn = document.createElement('button');
+          btn.className = 'settings-hidden-unhide';
+          btn.textContent = 'Unhide';
+          btn.onclick = async () => {
+            try { await window.api.unhideProject(p); flashSaved(); if (typeof loadProjects === 'function') loadProjects(); }
+            catch (e) { console.error('[settings] unhide failed', e); flashSaveError(); }
+            renderHidden();
+          };
+          r.appendChild(name);
+          r.appendChild(btn);
+          hiddenList.appendChild(r);
+        }
+      };
+      renderHidden();
+    }
 
     // Version string
     const verEl = q('sv-current-version');

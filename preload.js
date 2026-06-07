@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('api', {
   addProject: (projectPath) => ipcRenderer.invoke('add-project', projectPath),
   removeProject: (projectPath) => ipcRenderer.invoke('remove-project', projectPath),
   remapProject: (oldPath, newPath) => ipcRenderer.invoke('remap-project', oldPath, newPath),
+  getHiddenProjects: () => ipcRenderer.invoke('get-hidden-projects'),
+  unhideProject: (projectPath) => ipcRenderer.invoke('unhide-project', projectPath),
   setProjectGroup: (projectPath, group) => ipcRenderer.invoke('set-project-group', projectPath, group),
   deleteWorktree: (worktreePath) => ipcRenderer.invoke('delete-worktree', worktreePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),

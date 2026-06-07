@@ -4325,3 +4325,31 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
   color: var(--c-9090a8);
   font-variant-numeric: tabular-nums;
 }
+
+/* ========== HIDDEN FOLDERS MANAGEMENT (Settings → Sidebar) ========== */
+.settings-field.settings-field-block { flex-direction: column; align-items: stretch; gap: 10px; }
+.settings-field-block .settings-field-info { flex: none; }
+.settings-hidden-list { display: flex; flex-direction: column; gap: 6px; }
+.settings-hidden-empty { font-size: 12px; color: var(--c-7a7a90); padding: 2px; }
+.settings-hidden-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgb(var(--on) / 0.03);
+  border: 1px solid rgb(var(--on) / 0.06);
+}
+.settings-hidden-path { flex: 1; font-size: 12px; color: var(--c-c0c0d8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.settings-hidden-unhide {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.4);
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.settings-hidden-unhide:hover { background: rgb(var(--accent-rgb) / 0.1); }

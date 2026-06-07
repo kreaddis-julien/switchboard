@@ -72,6 +72,7 @@ For Windows/Linux, see [Building](#building).
 - **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path).
 - **Open sessions read-only by default** — clicking a dormant session opens its transcript without attaching a terminal; a **Resume** action (or double-click) attaches one. Addresses upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
+- **Hide a folder** from the sidebar (project gear → Hide Project) and **restore it** from a managed list (Settings → Sidebar → Hidden folders) — distinct from Archive, which acts on sessions.
 - **Project groups** — assign a project to a named group (project settings → Group); the sidebar renders grouped projects under a labeled divider.
 - **Relocate a moved project** ([#35](https://github.com/doctly/switchboard/pull/35)) — a project whose folder no longer exists shows a "!" badge; "Relocate…" in project settings points it at the new path.
 

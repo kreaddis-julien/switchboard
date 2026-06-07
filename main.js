@@ -393,6 +393,22 @@ ipcMain.handle('remove-project', (_event, projectPath) => {
   }
 });
 
+// --- IPC: list / unhide hidden projects ---
+ipcMain.handle('get-hidden-projects', () => {
+  return (getSetting('global') || {}).hiddenProjects || [];
+});
+ipcMain.handle('unhide-project', (_event, projectPath) => {
+  try {
+    const global = getSetting('global') || {};
+    global.hiddenProjects = (global.hiddenProjects || []).filter((p) => p !== projectPath);
+    setSetting('global', global);
+    notifyRendererProjectsChanged();
+    return { ok: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 // --- IPC: remap-project (#35) — point a moved/renamed project at a new path ---
 ipcMain.handle('remap-project', (_event, oldPath, newPath) => {
   try {
