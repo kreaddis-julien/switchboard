@@ -1186,6 +1186,26 @@ initGridObservers();
   // Insert next to the resort button
   resortBtn.parentElement.insertBefore(gridToggleBtn, resortBtn);
 
+  // --- Collapse / expand all projects ---
+  const collapseAllBtn = document.createElement('button');
+  collapseAllBtn.id = 'collapse-all-btn';
+  collapseAllBtn.title = 'Collapse / expand all projects';
+  collapseAllBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 9 12 5 20 9"/><polyline points="4 15 12 19 20 15"/></svg>';
+  collapseAllBtn.addEventListener('click', () => {
+    const headers = sidebarContent.querySelectorAll('.project-header');
+    const anyOpen = [...headers].some(h => !h.classList.contains('collapsed'));
+    headers.forEach(h => h.classList.toggle('collapsed', anyOpen));
+  });
+  resortBtn.parentElement.insertBefore(collapseAllBtn, gridToggleBtn);
+
+  // --- Bookmarks (also Cmd/Ctrl+B) ---
+  const bookmarksBtn = document.createElement('button');
+  bookmarksBtn.id = 'bookmarks-btn';
+  bookmarksBtn.title = 'Bookmarks (⌘B)';
+  bookmarksBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+  bookmarksBtn.addEventListener('click', () => { if (window._openBookmarks) window._openBookmarks(); });
+  resortBtn.parentElement.insertBefore(bookmarksBtn, gridToggleBtn);
+
   // --- Filters popover: gather the filter/action/settings controls behind one
   // "sliders" button so the sidebar header stays a single tidy row. ---
   {

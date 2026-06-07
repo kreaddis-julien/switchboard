@@ -672,6 +672,7 @@ async function showJsonlViewer(session) {
   for (const entry of entries) {
     const el = renderJsonlEntry(entry, toolResultMap);
     if (el) {
+      if (window._decorateJsonlEntry) window._decorateJsonlEntry(el, entry, session);
       jsonlViewerBody.appendChild(el);
       rendered++;
     }
@@ -696,4 +697,7 @@ async function showJsonlViewer(session) {
 
   // Scroll to the bottom so the most recent messages are visible
   jsonlViewerBody.scrollTop = jsonlViewerBody.scrollHeight;
+
+  // If opened from a bookmark, jump to the bookmarked message instead.
+  if (window._jsonlAfterRender) window._jsonlAfterRender(session.sessionId);
 }

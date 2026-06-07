@@ -24,6 +24,8 @@ Switchboard is a desktop app that gives you a unified view of all your Claude Co
 
 **Navigation**
 - **Command palette** (`⌘K` / `Ctrl+K`): fuzzy quick-switch to any session by name or project.
+- **Bookmarks** (`⌘B` / `Ctrl+B`): flag any message in a transcript, then jump back to it from the bookmarks list.
+- **Session tags**: label sessions (Tags action in the ⋯ menu); colored chips show in the sidebar.
 
 **Sidebar & UI**
 - Session actions moved behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no more accidental stop/fork on a mis-hover.
@@ -32,10 +34,13 @@ Switchboard is a desktop app that gives you a unified view of all your Claude Co
 - **Settings** opened from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
 - **Subagent transcripts** are nested under their parent session via an **"N subsessions"** toggle, instead of cluttering the list as peer sessions.
 - **Open sessions read-only by default** (Settings, on): clicking a dormant session opens its transcript without attaching a terminal; a **Resume** action in the ⋯ menu (or a double-click) attaches one. Addresses upstream [#25](https://github.com/doctly/switchboard/issues/25).
+- **Collapse / expand all projects** button in the sidebar header.
 
 **Behavior fixes**
 - The session overview removes a session's card when you stop it.
 - Archiving a session also tears down its open/pending instance, so a mis-forked session actually disappears from the sidebar.
+- **Cap transcript scan reads at 2 MB** so a huge `.jsonl` can't OOM/crash the cache scan (the viewer still loads the full file on demand). *(ported from the [folknor](https://github.com/folknor/switchboard) fork)*
+- **`Max Visible Sessions` is honored** even when recent sessions are older than the age cutoff (the cutoff now only drives project auto-collapse). *(ported from folknor)*
 
 **Curated upstream PRs merged in**
 - Security: [#32](https://github.com/doctly/switchboard/pull/32) (shell-injection → argv arrays), [#27](https://github.com/doctly/switchboard/pull/27) (XSS sanitization + CSP + IPC path guards, partial).

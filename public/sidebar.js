@@ -259,9 +259,12 @@ function renderProjects(projects, resort) {
       visible = allItems;
     } else {
       let count = 0;
-      const ageCutoff = Date.now() - sessionMaxAgeDays * 86400000;
+      // visibleSessionCount is a guarantee: always show up to N most-recent
+      // sessions. sessionMaxAgeDays governs project auto-collapse (see below),
+      // not this per-session window — gating it here used to silently shrink the
+      // visible list below the configured count when recent sessions were old.
       for (const item of allItems) {
-        if (item.running || item.pinned || (count < visibleSessionCount && item.sortTime >= ageCutoff)) {
+        if (item.running || item.pinned || count < visibleSessionCount) {
           visible.push(item);
           count++;
         } else {
@@ -628,6 +631,8 @@ function rebindSidebarEvents(projects) {
       }
     };
     item.ondblclick = () => openSession(session);
+
+    if (window._decorateSessionItem) window._decorateSessionItem(item, session);
 
     const pin = item.querySelector('.session-pin');
     if (pin) {

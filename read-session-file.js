@@ -38,7 +38,27 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
   const isSubagent = Boolean(opts.parentSessionId);
   try {
     const stat = fs.statSync(filePath);
-    const content = fs.readFileSync(filePath, 'utf8');
+    // Cap the scan read at 2 MB: this parse only needs early entries (slug, title,
+    // first user message, the first ~8 KB of text for search). Reading a multi-MB
+    // transcript fully into memory for every file during a scan can OOM/crash.
+    // The viewer (read-session-jsonl) still reads the whole file on demand.
+    const SCAN_READ_CAP = 2 * 1024 * 1024;
+    let content;
+    if (stat.size > SCAN_READ_CAP) {
+      const fd = fs.openSync(filePath, 'r');
+      try {
+        const buf = Buffer.allocUnsafe(SCAN_READ_CAP);
+        const bytes = fs.readSync(fd, buf, 0, SCAN_READ_CAP, 0);
+        content = buf.toString('utf8', 0, bytes);
+        // Drop the last (possibly truncated) line so we never parse a partial entry.
+        const lastNl = content.lastIndexOf('\n');
+        if (lastNl > 0) content = content.slice(0, lastNl);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } else {
+      content = fs.readFileSync(filePath, 'utf8');
+    }
     const lines = content.split('\n').filter(Boolean);
     let summary = '';
     let messageCount = 0;
