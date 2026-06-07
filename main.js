@@ -636,6 +636,40 @@ ipcMain.handle('get-stats', () => {
   }
 });
 
+// --- IPC: get-token-analytics (derived from the JSONL scan cache) ---
+// Per-model token breakdown + tool-call / subagent-invocation totals that
+// Claude's /stats doesn't surface. Tokens for very large (>2MB) transcripts are
+// approximate (the scan caps reads at 2MB).
+ipcMain.handle('get-token-analytics', () => {
+  try {
+    const rows = getAllCached();
+    const t = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, toolCalls: 0, subagentInvocations: 0, parentSessions: 0, subagentSessions: 0 };
+    const byModel = {};
+    for (const r of rows) {
+      const isSub = typeof r.sessionId === 'string' && r.sessionId.startsWith('sub:');
+      if (isSub) t.subagentSessions++; else t.parentSessions++;
+      t.inputTokens += r.inputTokens || 0;
+      t.outputTokens += r.outputTokens || 0;
+      t.cacheReadTokens += r.cacheReadTokens || 0;
+      t.cacheCreationTokens += r.cacheCreationTokens || 0;
+      t.toolCalls += r.toolCalls || 0;
+      t.subagentInvocations += r.subagentInvocations || 0;
+      const m = r.model || 'unknown';
+      const mm = byModel[m] || (byModel[m] = { model: m, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, sessions: 0 });
+      mm.inputTokens += r.inputTokens || 0;
+      mm.outputTokens += r.outputTokens || 0;
+      mm.cacheReadTokens += r.cacheReadTokens || 0;
+      mm.cacheCreationTokens += r.cacheCreationTokens || 0;
+      mm.sessions++;
+    }
+    const total = (m) => m.inputTokens + m.outputTokens + m.cacheReadTokens + m.cacheCreationTokens;
+    const models = Object.values(byModel).filter(total).sort((a, b) => total(b) - total(a));
+    return { totals: t, models };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
 // --- IPC: refresh-stats (run /stats + /usage via PTY) ---
 ipcMain.handle('refresh-stats', async () => {
   // For stats, use the configured shell profile

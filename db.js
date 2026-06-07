@@ -117,6 +117,16 @@ const migrations = [
     try { db.exec('DELETE FROM session_cache'); } catch {}
     try { db.exec('DELETE FROM cache_meta'); } catch {}
   },
+  // v5: Token/usage analytics — per-session metrics extracted from message.usage
+  // and tool_use blocks. Clear the cache so a re-index backfills the new columns.
+  (db) => {
+    for (const col of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheCreationTokens', 'toolCalls', 'subagentInvocations']) {
+      try { db.exec(`ALTER TABLE session_cache ADD COLUMN ${col} INTEGER DEFAULT 0`); } catch {}
+    }
+    try { db.exec('ALTER TABLE session_cache ADD COLUMN model TEXT'); } catch {}
+    try { db.exec('DELETE FROM session_cache'); } catch {}
+    try { db.exec('DELETE FROM cache_meta'); } catch {}
+  },
 ];
 
 const currentDbVersion = (() => {
@@ -170,8 +180,8 @@ const stmts = {
   cacheCount: db.prepare('SELECT COUNT(*) as cnt FROM session_cache'),
   cacheGetAll: db.prepare('SELECT * FROM session_cache'),
   cacheUpsert: db.prepare(`
-    INSERT INTO session_cache (sessionId, folder, projectPath, summary, firstPrompt, created, modified, messageCount, slug, aiTitle, parentSessionId, agentId, subagentType, description)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO session_cache (sessionId, folder, projectPath, summary, firstPrompt, created, modified, messageCount, slug, aiTitle, parentSessionId, agentId, subagentType, description, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(sessionId) DO UPDATE SET
       folder = excluded.folder, projectPath = excluded.projectPath,
       summary = excluded.summary, firstPrompt = excluded.firstPrompt,
@@ -179,7 +189,11 @@ const stmts = {
       messageCount = excluded.messageCount, slug = excluded.slug,
       aiTitle = excluded.aiTitle,
       parentSessionId = excluded.parentSessionId, agentId = excluded.agentId,
-      subagentType = excluded.subagentType, description = excluded.description
+      subagentType = excluded.subagentType, description = excluded.description,
+      inputTokens = excluded.inputTokens, outputTokens = excluded.outputTokens,
+      cacheReadTokens = excluded.cacheReadTokens, cacheCreationTokens = excluded.cacheCreationTokens,
+      toolCalls = excluded.toolCalls, subagentInvocations = excluded.subagentInvocations,
+      model = excluded.model
   `),
   cacheGetByParent: db.prepare('SELECT * FROM session_cache WHERE parentSessionId = ? ORDER BY created ASC'),
   cacheGetByFolder: db.prepare('SELECT sessionId, modified, parentSessionId, agentId FROM session_cache WHERE folder = ?'),
@@ -269,7 +283,10 @@ const upsertCachedSessionsBatch = db.transaction((sessions) => {
       s.firstPrompt, s.created, s.modified, s.messageCount || 0,
       s.slug || null, s.aiTitle || null,
       s.parentSessionId || null, s.agentId || null,
-      s.subagentType || null, s.description || null
+      s.subagentType || null, s.description || null,
+      s.inputTokens || 0, s.outputTokens || 0, s.cacheReadTokens || 0,
+      s.cacheCreationTokens || 0, s.toolCalls || 0, s.subagentInvocations || 0,
+      s.model || null
     );
   }
 });

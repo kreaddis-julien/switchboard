@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   getStats: () => ipcRenderer.invoke('get-stats'),
   refreshStats: () => ipcRenderer.invoke('refresh-stats'),
   getUsage: () => ipcRenderer.invoke('get-usage'),
+  getTokenAnalytics: () => ipcRenderer.invoke('get-token-analytics'),
   getMemories: () => ipcRenderer.invoke('get-memories'),
   readMemory: (filePath) => ipcRenderer.invoke('read-memory', filePath),
   saveMemory: (filePath, content) => ipcRenderer.invoke('save-memory', filePath, content),

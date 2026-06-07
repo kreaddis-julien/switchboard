@@ -68,6 +68,10 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
     let aiTitle = null;
     let agentId = null;
     let sidechainSeen = false;
+    // Token/usage metrics (analytics). Tokens summed from each assistant line's
+    // message.usage; tool calls / subagent (Task) invocations from tool_use blocks.
+    let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
+    let toolCalls = 0, subagentInvocations = 0, model = null;
     for (const line of lines) {
       // Per-line try/catch: a JSONL file being written concurrently by a live
       // Claude CLI session can have its tail captured mid-write — one truncated
@@ -92,6 +96,22 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
       const text = typeof msg === 'string' ? msg :
         (typeof msg?.content === 'string' ? msg.content :
         (msg?.content?.[0]?.text || ''));
+      // Analytics: accumulate usage/model/tool metrics from assistant turns.
+      if (entry.type === 'assistant' || (entry.type === 'message' && entry.role === 'assistant')) {
+        const u = msg && msg.usage;
+        if (u) {
+          inputTokens += u.input_tokens || 0;
+          outputTokens += u.output_tokens || 0;
+          cacheReadTokens += u.cache_read_input_tokens || 0;
+          cacheCreationTokens += u.cache_creation_input_tokens || 0;
+        }
+        if (msg && msg.model && !model) model = msg.model;
+      }
+      if (msg && Array.isArray(msg.content)) {
+        for (const b of msg.content) {
+          if (b && b.type === 'tool_use') { toolCalls++; if (b.name === 'Task') subagentInvocations++; }
+        }
+      }
       if (!summary && (entry.type === 'user' || (entry.type === 'message' && entry.role === 'user'))) {
         // Skip local command messages (! prefix) — use the next real user message
         if (text && !/<bash-input>|<bash-stdout>|<local-command-caveat>/.test(text)) {
@@ -127,6 +147,7 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
         created: stat.birthtime.toISOString(),
         modified: stat.mtime.toISOString(),
         messageCount, textContent, slug, customTitle, aiTitle,
+      inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model,
         parentSessionId: opts.parentSessionId,
         agentId,
         subagentType,
@@ -140,6 +161,7 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
       created: stat.birthtime.toISOString(),
       modified: stat.mtime.toISOString(),
       messageCount, textContent, slug, customTitle, aiTitle,
+      inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model,
     };
   } catch {
     return null;

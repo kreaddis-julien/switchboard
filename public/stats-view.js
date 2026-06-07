@@ -55,6 +55,9 @@ async function loadStats() {
     buildUsageSection(usage);
   }
 
+  // Token analytics derived from the JSONL scan (per-model + tool/subagent totals)
+  await buildTokenAnalyticsSection();
+
   if (stats) {
     const notice = document.createElement('div');
     notice.className = 'stats-notice';
@@ -456,4 +459,67 @@ function buildStatsSummary(stats, dailyMap) {
   }
 
   statsViewerBody.appendChild(summaryEl);
+}
+
+// Token analytics from the JSONL scan cache (per-model + tool/subagent totals).
+async function buildTokenAnalyticsSection() {
+  let data;
+  try { data = await window.api.getTokenAnalytics(); } catch { return; }
+  if (!data || data.error || !data.totals) return;
+  const t = data.totals;
+  const totalTokens = t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheCreationTokens;
+  if (!totalTokens && !t.toolCalls) return; // nothing scanned yet
+
+  const fmt = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B'
+    : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M'
+    : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n || 0);
+
+  const section = document.createElement('div');
+  section.className = 'token-analytics';
+
+  const title = document.createElement('div');
+  title.className = 'token-analytics-title';
+  title.textContent = 'Token usage';
+  section.appendChild(title);
+
+  const cards = document.createElement('div');
+  cards.className = 'stats-summary';
+  const cardData = [
+    { value: fmt(totalTokens), label: 'Total tokens' },
+    { value: fmt(t.inputTokens), label: 'Input' },
+    { value: fmt(t.outputTokens), label: 'Output' },
+    { value: fmt(t.cacheReadTokens), label: 'Cache read' },
+    { value: fmt(t.toolCalls), label: 'Tool calls' },
+    { value: fmt(t.subagentInvocations), label: 'Subagents' },
+  ];
+  for (const c of cardData) {
+    const el = document.createElement('div');
+    el.className = 'stat-card';
+    el.innerHTML = `<span class="stat-card-value">${escapeHtml(c.value)}</span><span class="stat-card-label">${escapeHtml(c.label)}</span>`;
+    cards.appendChild(el);
+  }
+  section.appendChild(cards);
+
+  if (data.models && data.models.length) {
+    const totOf = (m) => m.inputTokens + m.outputTokens + m.cacheReadTokens + m.cacheCreationTokens;
+    const max = Math.max(...data.models.map(totOf));
+    const mwrap = document.createElement('div');
+    mwrap.className = 'token-models';
+    for (const m of data.models) {
+      const tot = totOf(m);
+      const pct = max ? Math.round(tot / max * 100) : 0;
+      const shortModel = (m.model || 'unknown').replace(/^claude-/, '').replace(/-\d{6,8}$/, '');
+      const row = document.createElement('div');
+      row.className = 'token-model-row';
+      row.innerHTML = '<span class="token-model-name"></span><span class="token-model-bar"><span class="token-model-fill"></span></span><span class="token-model-val"></span>';
+      row.querySelector('.token-model-name').textContent = shortModel;
+      row.querySelector('.token-model-name').title = (m.model || 'unknown') + ' · ' + m.sessions + ' sessions';
+      row.querySelector('.token-model-fill').style.width = pct + '%';
+      row.querySelector('.token-model-val').textContent = fmt(tot);
+      mwrap.appendChild(row);
+    }
+    section.appendChild(mwrap);
+  }
+
+  statsViewerBody.appendChild(section);
 }
