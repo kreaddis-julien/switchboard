@@ -24,8 +24,9 @@ const cv = createCanvas(S, S); const ctx = cv.getContext('2d');
 
 // Background: near-black with a subtle top sheen + hairline rim (premium, still mono).
 squircle(ctx, S); ctx.save(); ctx.clip();
+// Graphite gradient in the spirit of the macOS Terminal app icon (not pure black).
 const g = ctx.createLinearGradient(0, 0, 0, S);
-g.addColorStop(0, '#17171d'); g.addColorStop(1, '#0c0c11');
+g.addColorStop(0, '#3b3c40'); g.addColorStop(0.5, '#2a2b2f'); g.addColorStop(1, '#1b1c1f');
 ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
 const sh = ctx.createLinearGradient(0, 0, 0, S * 0.5);
 sh.addColorStop(0, 'rgba(255,255,255,0.06)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
@@ -52,7 +53,7 @@ for (const n of nodes) {
 }
 // hub as a ring (filled white + punched-out center) so it reads as the "board"
 ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
-ctx.fillStyle = '#0c0c11'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.42, 0, 7); ctx.fill();
+ctx.fillStyle = '#2a2b2f'; ctx.beginPath(); ctx.arc(cx, cy, R * 0.42, 0, 7); ctx.fill();
 
 fs.writeFileSync(path.join(__dirname, '..', 'build', 'icon.png'), cv.toBuffer('image/png'));
 console.log('Wrote build/icon.png');
