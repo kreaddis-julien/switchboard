@@ -1176,17 +1176,17 @@ initGridObservers();
   });
 }
 
-// --- Grid view toggle button (next to resort button in sidebar filters) ---
+// --- Sidebar toolbar: action buttons + a "more" popover, with per-action
+//     placement (visible vs popover) configurable from Settings → Toolbar. ---
 {
+  const filtersRow = document.getElementById('session-filters');
+
   const gridToggleBtn = document.createElement('button');
   gridToggleBtn.id = 'grid-toggle-btn';
   gridToggleBtn.title = 'Session overview';
   gridToggleBtn.innerHTML = '<svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>';
   gridToggleBtn.addEventListener('click', toggleGridView);
-  // Insert next to the resort button
-  resortBtn.parentElement.insertBefore(gridToggleBtn, resortBtn);
 
-  // --- Collapse / expand all projects ---
   const collapseAllBtn = document.createElement('button');
   collapseAllBtn.id = 'collapse-all-btn';
   collapseAllBtn.title = 'Collapse / expand all projects';
@@ -1196,56 +1196,71 @@ initGridObservers();
     const anyOpen = [...headers].some(h => !h.classList.contains('collapsed'));
     headers.forEach(h => h.classList.toggle('collapsed', anyOpen));
   });
-  resortBtn.parentElement.insertBefore(collapseAllBtn, gridToggleBtn);
 
-  // --- Bookmarks (also Cmd/Ctrl+B) ---
   const bookmarksBtn = document.createElement('button');
   bookmarksBtn.id = 'bookmarks-btn';
   bookmarksBtn.title = 'Bookmarks (⌘B)';
   bookmarksBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   bookmarksBtn.addEventListener('click', () => { if (window._openBookmarks) window._openBookmarks(); });
-  resortBtn.parentElement.insertBefore(bookmarksBtn, gridToggleBtn);
 
-  // --- Filters popover: gather the filter/action/settings controls behind one
-  // "sliders" button so the sidebar header stays a single tidy row. ---
-  {
-    const filtersRow = document.getElementById('session-filters');
-    if (filtersRow) {
-      const magic = document.createElement('button');
-      magic.id = 'filters-toggle-btn';
-      magic.title = 'Filters & actions';
-      magic.setAttribute('aria-label', 'Filters & actions');
-      magic.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>';
-      const popover = document.createElement('div');
-      popover.id = 'filters-popover';
-      // Re-parent the SECONDARY controls into the popover (order preserved); their
-      // click handlers stay bound to the same nodes. running + pin + overview
-      // (grid) stay directly visible.
-      ['today-toggle', 'archive-toggle', 'resort-btn', 'add-project-btn']
-        .forEach(id => { const el = document.getElementById(id); if (el) popover.appendChild(el); });
-      // Visible cluster order: running, pin, overview(grid), then the magic button
-      // (with the popover anchored under it).
-      const wrap = document.createElement('span');
-      wrap.className = 'filters-magic-wrap';
-      wrap.appendChild(magic);
-      wrap.appendChild(popover);
-      let anchor = document.getElementById('star-toggle');
-      const grid = document.getElementById('grid-toggle-btn');
-      if (grid && anchor) { anchor.insertAdjacentElement('afterend', grid); anchor = grid; }
-      if (anchor) anchor.insertAdjacentElement('afterend', wrap);
-      else filtersRow.insertBefore(wrap, filtersRow.firstChild);
+  if (filtersRow) {
+    const magic = document.createElement('button');
+    magic.id = 'filters-toggle-btn';
+    magic.title = 'More filters & actions';
+    magic.setAttribute('aria-label', 'More filters & actions');
+    magic.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>';
+    const popover = document.createElement('div');
+    popover.id = 'filters-popover';
+    const wrap = document.createElement('span');
+    wrap.className = 'filters-magic-wrap';
+    wrap.appendChild(magic);
+    wrap.appendChild(popover);
 
-      const closePopover = () => { popover.classList.remove('open'); magic.classList.remove('active'); };
-      magic.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const open = popover.classList.toggle('open');
-        magic.classList.toggle('active', open);
-      });
-      document.addEventListener('click', (e) => {
-        if (popover.classList.contains('open') && !popover.contains(e.target) && !magic.contains(e.target)) closePopover();
-      });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
-    }
+    // Ensure the JS-built buttons are in the DOM; _applyToolbarLayout positions all.
+    filtersRow.appendChild(gridToggleBtn);
+    filtersRow.appendChild(collapseAllBtn);
+    filtersRow.appendChild(bookmarksBtn);
+    filtersRow.appendChild(wrap);
+
+    // Ordered action list. Default placement = the layout shipped before this
+    // setting existed (pin/running/overview/collapse/bookmarks visible, rest in popover).
+    const TOOLBAR_ACTIONS = [
+      { key: 'pin',        id: 'star-toggle',      label: 'Pin / favourite' },
+      { key: 'running',    id: 'running-toggle',   label: 'Running only' },
+      { key: 'overview',   id: 'grid-toggle-btn',  label: 'Session overview (grid)' },
+      { key: 'collapse',   id: 'collapse-all-btn', label: 'Collapse all projects' },
+      { key: 'bookmarks',  id: 'bookmarks-btn',    label: 'Bookmarks' },
+      { key: 'today',      id: 'today-toggle',     label: 'Today only' },
+      { key: 'archive',    id: 'archive-toggle',   label: 'Show archived' },
+      { key: 'resort',     id: 'resort-btn',       label: 'Re-sort sessions' },
+      { key: 'addProject', id: 'add-project-btn',  label: 'Add project' },
+    ];
+    const TOOLBAR_DEFAULT = { pin: 'visible', running: 'visible', overview: 'visible', collapse: 'visible', bookmarks: 'visible', today: 'popover', archive: 'popover', resort: 'popover', addProject: 'popover' };
+    window._toolbarActions = TOOLBAR_ACTIONS;
+    window._toolbarDefault = TOOLBAR_DEFAULT;
+    window._applyToolbarLayout = (placement) => {
+      const p = { ...TOOLBAR_DEFAULT, ...(placement || {}) };
+      for (const a of TOOLBAR_ACTIONS) {
+        const el = document.getElementById(a.id);
+        if (!el) continue;
+        if (p[a.key] === 'popover') popover.appendChild(el);
+        else filtersRow.insertBefore(el, wrap); // visible, before the "more" button
+      }
+      // Hide the "more" button entirely when the popover is empty.
+      wrap.style.display = popover.children.length ? '' : 'none';
+    };
+    window._applyToolbarLayout(); // default placement; boot re-applies the saved one
+
+    const closePopover = () => { popover.classList.remove('open'); magic.classList.remove('active'); };
+    magic.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = popover.classList.toggle('open');
+      magic.classList.toggle('active', open);
+    });
+    document.addEventListener('click', (e) => {
+      if (popover.classList.contains('open') && !popover.contains(e.target) && !magic.contains(e.target)) closePopover();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
   }
 
   // Global keyboard shortcuts (covers non-terminal focus)
@@ -1305,6 +1320,7 @@ setTimeout(() => {
     window._setSoundNotifications(global.soundNotifications);
     window._setSystemNotifications(global.systemNotifications);
     window._setOpenSessionsReadOnly(global.openSessionsReadOnly);
+    if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons);
     window._applyTabVisibility(global);
   }
 })();

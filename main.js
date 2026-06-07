@@ -1663,12 +1663,12 @@ app.whenReady().then(() => {
   // Re-index search if FTS table was recreated (e.g. tokenizer config change)
   if (searchFtsRecreated) populateCacheViaWorker();
 
-  // Check for updates after launch
-  if (autoUpdater) {
-    setTimeout(() => autoUpdater.checkForUpdates().catch(e => log.error('[updater] check failed:', e?.message || String(e))), 5000);
-    // Re-check every 4 hours for long-running sessions
-    setInterval(() => autoUpdater.checkForUpdates().catch(e => log.error('[updater] check failed:', e?.message || String(e))), 4 * 60 * 60 * 1000);
-  }
+  // Auto-update is intentionally disabled in this fork. We are built locally from
+  // our own repo (no published releases), and the configured feed still points at
+  // the upstream doctly releases — an automatic check would surface upstream builds
+  // as "updates" and a click could overwrite this fork. So we do NOT schedule any
+  // checkForUpdates here. The manual "Check for Updates" UI is also removed; the
+  // updater module stays loaded but dormant.
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

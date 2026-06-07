@@ -1,4 +1,4 @@
-// Settings panel component
+// Settings panel component — category nav (left) + panes (right), auto-save.
 // Manages the global and project settings viewer UI.
 
 (function () {
@@ -13,7 +13,6 @@
     const placeholder = document.getElementById('placeholder');
     const gridViewActive = localStorage.getItem('gridViewActive') === '1';
     const activeSessionId = sessionStorage.getItem('activeSessionId') || null;
-    // Check if there's an active session with an open terminal
     if (activeSessionId && window._openSessions && window._openSessions.has(activeSessionId)) {
       terminalArea.style.display = '';
       terminalHeader.style.display = '';
@@ -24,6 +23,15 @@
     }
   }
 
+  const row = (label, desc, control, ug = '') =>
+    `<div class="settings-field">
+      <div class="settings-field-info">
+        <div class="settings-field-header"><span class="settings-label">${label}</span>${ug}</div>
+        ${desc ? `<div class="settings-description">${desc}</div>` : ''}
+      </div>
+      <div class="settings-field-control">${control}</div>
+    </div>`;
+
   async function openSettingsViewer(scope, projectPath) {
     const isProject = scope === 'project';
     const settingsKey = isProject ? 'project:' + projectPath : 'global';
@@ -33,10 +41,8 @@
     const shortName = isProject
       ? projectPath.split('/').filter(Boolean).slice(-2).join('/')
       : 'Global';
+    settingsViewerTitle.textContent = (isProject ? 'Project Settings — ' : 'Settings — ') + shortName;
 
-    settingsViewerTitle.textContent = (isProject ? 'Project Settings — ' : 'Global Settings — ') + shortName;
-
-    // Show settings viewer, hide others
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('terminal-area').style.display = 'none';
     document.getElementById('plan-viewer').style.display = 'none';
@@ -45,23 +51,21 @@
     document.getElementById('jsonl-viewer').style.display = 'none';
     settingsViewer.style.display = 'flex';
 
-    function useGlobalCheckbox(fieldName) {
+    const useGlobalCheckbox = (fieldName) => {
       if (!isProject) return '';
       const useGlobal = current[fieldName] === undefined || current[fieldName] === null;
       return `<label class="settings-use-global"><input type="checkbox" data-field="${fieldName}" class="use-global-cb" ${useGlobal ? 'checked' : ''}> Use global default</label>`;
-    }
-
-    function fieldValue(fieldName, fallback) {
+    };
+    const fieldValue = (fieldName, fallback) => {
       if (isProject && (current[fieldName] === undefined || current[fieldName] === null)) {
         return globalSettings[fieldName] !== undefined ? globalSettings[fieldName] : fallback;
       }
       return current[fieldName] !== undefined ? current[fieldName] : fallback;
-    }
-
-    function fieldDisabled(fieldName) {
+    };
+    const fieldDisabled = (fieldName) => {
       if (!isProject) return '';
       return (current[fieldName] === undefined || current[fieldName] === null) ? 'disabled' : '';
-    }
+    };
 
     const permModeValue = fieldValue('permissionMode', '');
     const worktreeValue = fieldValue('worktree', false);
@@ -82,407 +86,239 @@
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
-    // Discover available shell profiles
     let shellProfiles = [];
-    try { shellProfiles = await window.api.getShellProfiles(); } catch {};
+    try { shellProfiles = await window.api.getShellProfiles(); } catch {}
 
-    settingsViewerBody.innerHTML = `
-    <div class="settings-form">
-      <div class="settings-section">
-        <div class="settings-section-title">Claude CLI Options</div>
+    const toggle = (id, on, dis = '') => `<label class="settings-toggle"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} ${dis}><span class="settings-toggle-slider"></span></label>`;
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Permission Mode</span>
-              ${useGlobalCheckbox('permissionMode')}
-            </div>
-            <div class="settings-description">Permission mode passed to the <code>claude</code> command</div>
-          </div>
-          <div class="settings-field-control">
-            <select class="settings-select" id="sv-perm-mode" ${fieldDisabled('permissionMode')}>
-              <option value="">Default (none)</option>
-              <option value="acceptEdits" ${permModeValue === 'acceptEdits' ? 'selected' : ''}>Accept Edits</option>
-              <option value="plan" ${permModeValue === 'plan' ? 'selected' : ''}>Plan Mode</option>
-              <option value="dontAsk" ${permModeValue === 'dontAsk' ? 'selected' : ''}>Don't Ask</option>
-              <option value="bypassPermissions" ${permModeValue === 'bypassPermissions' ? 'selected' : ''}>Bypass</option>
-            </select>
-          </div>
-        </div>
+    // ---- CLI category (both scopes) ----
+    const cliPane = `<div class="settings-pane" data-cat="cli">
+      ${row('Permission Mode', 'Permission mode passed to the <code>claude</code> command',
+        `<select class="settings-select" id="sv-perm-mode" ${fieldDisabled('permissionMode')}>
+          <option value="">Default (none)</option>
+          <option value="acceptEdits" ${permModeValue === 'acceptEdits' ? 'selected' : ''}>Accept Edits</option>
+          <option value="plan" ${permModeValue === 'plan' ? 'selected' : ''}>Plan Mode</option>
+          <option value="dontAsk" ${permModeValue === 'dontAsk' ? 'selected' : ''}>Don't Ask</option>
+          <option value="bypassPermissions" ${permModeValue === 'bypassPermissions' ? 'selected' : ''}>Bypass</option>
+        </select>`, useGlobalCheckbox('permissionMode'))}
+      ${row('Worktree', 'Enable worktree for new sessions', toggle('sv-worktree', worktreeValue, fieldDisabled('worktree')), useGlobalCheckbox('worktree'))}
+      ${row('Worktree Name', 'Custom name for worktree branches',
+        `<input type="text" class="settings-input" id="sv-worktree-name" placeholder="auto" value="${escapeHtml(worktreeNameValue)}" ${fieldDisabled('worktreeName')} style="width:140px">`, useGlobalCheckbox('worktreeName'))}
+      ${row('Chrome', 'Enable Chrome browser automation', toggle('sv-chrome', chromeValue, fieldDisabled('chrome')), useGlobalCheckbox('chrome'))}
+      ${row('Additional Directories', 'Extra directories to include in Claude sessions',
+        `<input type="text" class="settings-input" id="sv-add-dirs" placeholder="/path/to/dir1, /path/to/dir2" value="${escapeHtml(addDirsValue)}" ${fieldDisabled('addDirs')}>`, useGlobalCheckbox('addDirs'))}
+      ${row('Pre-launch Command', 'Prepended to the claude command (e.g. "aws-vault exec profile --")',
+        `<input type="text" class="settings-input" id="sv-pre-launch" placeholder="e.g. aws-vault exec profile --" value="${escapeHtml(preLaunchValue)}" ${fieldDisabled('preLaunchCmd')}>`, useGlobalCheckbox('preLaunchCmd'))}
+    </div>`;
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Worktree</span>
-              ${useGlobalCheckbox('worktree')}
-            </div>
-            <div class="settings-description">Enable worktree for new sessions</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-worktree" ${worktreeValue ? 'checked' : ''} ${fieldDisabled('worktree')}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
+    let nav, panes;
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Worktree Name</span>
-              ${useGlobalCheckbox('worktreeName')}
-            </div>
-            <div class="settings-description">Custom name for worktree branches</div>
-          </div>
-          <div class="settings-field-control">
-            <input type="text" class="settings-input" id="sv-worktree-name" placeholder="auto" value="${escapeHtml(worktreeNameValue)}" ${fieldDisabled('worktreeName')} style="width:140px">
-          </div>
-        </div>
+    if (isProject) {
+      nav = [
+        { cat: 'cli', label: 'Claude CLI' },
+        { cat: 'project', label: 'Project' },
+      ];
+      panes = cliPane + `<div class="settings-pane" data-cat="project">
+        ${row('Hide Project', 'Hides this project from the sidebar. Session files are not deleted.',
+          '<button class="settings-remove-btn" id="sv-remove-btn">Hide Project</button>')}
+      </div>`;
+    } else {
+      // Toolbar category: a placement select per action.
+      const actions = window._toolbarActions || [];
+      const placement = { ...(window._toolbarDefault || {}), ...(current.toolbarIcons || {}) };
+      const toolbarRows = actions.map((a) =>
+        row(a.label, '',
+          `<select class="settings-select" data-toolbar-action="${a.key}">
+            <option value="visible" ${placement[a.key] === 'visible' ? 'selected' : ''}>Toolbar</option>
+            <option value="popover" ${placement[a.key] !== 'visible' ? 'selected' : ''}>In popover</option>
+          </select>`)
+      ).join('');
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Chrome</span>
-              ${useGlobalCheckbox('chrome')}
-            </div>
-            <div class="settings-description">Enable Chrome browser automation</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-chrome" ${chromeValue ? 'checked' : ''} ${fieldDisabled('chrome')}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field settings-field-wide">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Additional Directories</span>
-              ${useGlobalCheckbox('addDirs')}
-            </div>
-            <div class="settings-description">Extra directories to include in Claude sessions</div>
-          </div>
-          <div class="settings-field-control">
-            <input type="text" class="settings-input" id="sv-add-dirs" placeholder="/path/to/dir1, /path/to/dir2" value="${escapeHtml(addDirsValue)}" ${fieldDisabled('addDirs')}>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-section-title">Session Launch</div>
-
-        <div class="settings-field settings-field-wide">
-          <div class="settings-field-info">
-            <div class="settings-field-header">
-              <span class="settings-label">Pre-launch Command</span>
-              ${useGlobalCheckbox('preLaunchCmd')}
-            </div>
-            <div class="settings-description">Prepended to the claude command (e.g. "aws-vault exec profile --")</div>
-          </div>
-          <div class="settings-field-control">
-            <input type="text" class="settings-input" id="sv-pre-launch" placeholder="e.g. aws-vault exec profile --" value="${escapeHtml(preLaunchValue)}" ${fieldDisabled('preLaunchCmd')}>
-          </div>
-        </div>
-      </div>
-
-      ${!isProject ? `<div class="settings-section">
-        <div class="settings-section-title">Application</div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Appearance</span>
-            <div class="settings-description">App theme. Auto follows the macOS appearance (incl. automatic light/dark).</div>
-          </div>
-          <div class="settings-field-control">
-            <select class="settings-select" id="sv-appearance">
+      nav = [
+        { cat: 'general', label: 'General' },
+        { cat: 'notifications', label: 'Notifications' },
+        { cat: 'sessions', label: 'Sessions' },
+        { cat: 'sidebar', label: 'Sidebar' },
+        { cat: 'toolbar', label: 'Toolbar' },
+        { cat: 'cli', label: 'Claude CLI' },
+        { cat: 'about', label: 'About' },
+      ];
+      panes = `
+        <div class="settings-pane" data-cat="general">
+          ${row('Appearance', 'App theme. Auto follows the macOS appearance (incl. automatic light/dark).',
+            `<select class="settings-select" id="sv-appearance">
               <option value="auto" ${appearanceValue === 'auto' ? 'selected' : ''}>Auto (system)</option>
               <option value="light" ${appearanceValue === 'light' ? 'selected' : ''}>Light</option>
               <option value="dark" ${appearanceValue === 'dark' ? 'selected' : ''}>Dark</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Show Plans Tab</span>
-            <div class="settings-description">Show the Plans tab in the sidebar</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-show-plans" ${showPlansTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Show Agent Files Tab</span>
-            <div class="settings-description">Show the Agent Files (memory) tab in the sidebar</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-show-memory" ${showMemoryTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Show Stats Tab</span>
-            <div class="settings-description">Show the Stats tab in the sidebar</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-show-stats" ${showStatsTabValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Sound Notifications</span>
-            <div class="settings-description">Play a chime when a non-focused session finishes a run or needs your attention</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-sound-notif" ${soundNotificationsValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">System Notifications</span>
-            <div class="settings-description">macOS Notification Center alert (click to focus the session) + a dock badge counting sessions that need attention</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-system-notif" ${systemNotificationsValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Open Sessions Read-Only</span>
-            <div class="settings-description">Clicking a dormant session opens its transcript (read-only). Use "Resume" in the ⋯ menu, or double-click, to attach a terminal</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-open-readonly" ${openReadOnlyValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Terminal Theme</span>
-            <div class="settings-description">Color theme for terminal sessions</div>
-          </div>
-          <div class="settings-field-control">
-            <select class="settings-select" id="sv-terminal-theme">
-              ${Object.entries(TERMINAL_THEMES).map(([key, t]) =>
-                `<option value="${key}" ${themeValue === key ? 'selected' : ''}>${escapeHtml(t.label)}</option>`
-              ).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Shell Profile</span>
-            <div class="settings-description">Shell used for terminal and Claude sessions. Changes take effect for new sessions only.</div>
-          </div>
-          <div class="settings-field-control">
-            <select class="settings-select" id="sv-shell-profile">
+            </select>`)}
+          ${row('Terminal Theme', 'Color theme for terminal sessions',
+            `<select class="settings-select" id="sv-terminal-theme">
+              ${Object.entries(TERMINAL_THEMES).map(([key, t]) => `<option value="${key}" ${themeValue === key ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
+            </select>`)}
+          ${row('Shell Profile', 'Shell used for terminal and Claude sessions. Changes take effect for new sessions only.',
+            `<select class="settings-select" id="sv-shell-profile">
               <option value="auto" ${shellProfileValue === 'auto' ? 'selected' : ''}>Auto (detect)</option>
-              ${shellProfiles.map(p =>
-                `<option value="${escapeHtml(p.id)}" ${shellProfileValue === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
-              ).join('')}
-            </select>
-          </div>
+              ${shellProfiles.map((p) => `<option value="${escapeHtml(p.id)}" ${shellProfileValue === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select>`)}
         </div>
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Max Visible Sessions</span>
-            <div class="settings-description">Show up to this many sessions before collapsing the rest behind "+N older"</div>
-          </div>
-          <div class="settings-field-control">
-            <input type="number" class="settings-input settings-input-compact" id="sv-visible-count" min="1" max="100" value="${visCountValue}">
-          </div>
+        <div class="settings-pane" data-cat="notifications">
+          ${row('Sound Notifications', 'Play a chime when a non-focused session finishes a run or needs your attention', toggle('sv-sound-notif', soundNotificationsValue))}
+          ${row('System Notifications', 'macOS Notification Center alert (click to focus the session) + a dock badge counting sessions that need attention', toggle('sv-system-notif', systemNotificationsValue))}
         </div>
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Session Max Age (days)</span>
-            <div class="settings-description">Sessions older than this are hidden behind "+N older" even if under the count limit</div>
-          </div>
-          <div class="settings-field-control">
-            <input type="number" class="settings-input settings-input-compact" id="sv-max-age" min="1" max="365" value="${maxAgeValue}">
-          </div>
+        <div class="settings-pane" data-cat="sessions">
+          ${row('Open Sessions Read-Only', 'Clicking a dormant session opens its transcript (read-only). Use "Resume" in the ⋯ menu, or double-click, to attach a terminal', toggle('sv-open-readonly', openReadOnlyValue))}
+          ${row('Max Visible Sessions', 'Show up to this many sessions before collapsing the rest behind "+N older"',
+            `<input type="number" class="settings-input settings-input-compact" id="sv-visible-count" min="1" max="100" value="${visCountValue}">`)}
+          ${row('Session Max Age (days)', 'Projects whose newest session is older than this auto-collapse in the sidebar',
+            `<input type="number" class="settings-input settings-input-compact" id="sv-max-age" min="1" max="365" value="${maxAgeValue}">`)}
+          ${row('IDE Emulation', 'Emulate an IDE so Claude can open files and diffs in a side panel. Disable to use your own IDE instead. New sessions only.', toggle('sv-mcp-emulation', mcpEmulationValue))}
         </div>
 
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">IDE Emulation</span>
-            <div class="settings-description">Emulate an IDE so Claude can open files and diffs in a side panel. Disable to use your own IDE instead. Changes take effect for new sessions only.</div>
-          </div>
-          <div class="settings-field-control">
-            <label class="settings-toggle"><input type="checkbox" id="sv-mcp-emulation" ${mcpEmulationValue ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
-          </div>
+        <div class="settings-pane" data-cat="sidebar">
+          ${row('Show Plans Tab', 'Show the Plans tab in the sidebar', toggle('sv-show-plans', showPlansTabValue))}
+          ${row('Show Agent Files Tab', 'Show the Agent Files (memory) tab in the sidebar', toggle('sv-show-memory', showMemoryTabValue))}
+          ${row('Show Stats Tab', 'Show the Stats tab in the sidebar', toggle('sv-show-stats', showStatsTabValue))}
         </div>
-      </div>` : ''}
 
-      ${!isProject ? `<div class="settings-section">
-        <div class="settings-section-title">Updates</div>
-        <div class="settings-field">
-          <div class="settings-field-info">
-            <span class="settings-label">Version</span>
-            <div class="settings-description"><span id="sv-current-version"></span> <span id="sv-update-status"></span></div>
-          </div>
-          <div class="settings-field-control">
-            <button class="settings-check-updates-btn" id="sv-check-updates-btn">Check for Updates</button>
-          </div>
+        <div class="settings-pane" data-cat="toolbar">
+          <div class="settings-pane-hint">Choose which sidebar actions sit directly in the toolbar vs behind the "more" (⋯) popover.</div>
+          ${toolbarRows}
         </div>
-      </div>` : ''}
 
-      <div class="settings-btn-row">
-        <button class="settings-cancel-btn" id="sv-cancel-btn">Cancel</button>
-        <button class="settings-save-btn" id="sv-save-btn">Save Settings</button>
-        ${isProject ? '<button class="settings-remove-btn" id="sv-remove-btn">Hide Project</button>' : ''}
-      </div>
-    </div>
-  `;
+        ${cliPane}
 
-    // Use-global checkboxes toggle field disabled state
-    settingsViewerBody.querySelectorAll('.use-global-cb').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const field = cb.dataset.field;
-        const fieldMap = {
-          permissionMode: 'sv-perm-mode',
-          worktree: 'sv-worktree',
-          worktreeName: 'sv-worktree-name',
-          chrome: 'sv-chrome',
-          preLaunchCmd: 'sv-pre-launch',
-          addDirs: 'sv-add-dirs',
-        };
-        const input = settingsViewerBody.querySelector('#' + fieldMap[field]);
-        if (input) input.disabled = cb.checked;
-      });
-    });
+        <div class="settings-pane" data-cat="about">
+          ${row('Version', '<span id="sv-current-version"></span>', '')}
+          ${row('Auto-update', 'Disabled in this fork — it is built locally from your own repo, so there are no releases to update from.', '<span class="settings-muted">Off</span>')}
+        </div>`;
+    }
 
-    // Save button
-    settingsViewerBody.querySelector('#sv-save-btn').addEventListener('click', async () => {
-      let settings = {};
+    settingsViewerBody.innerHTML = `
+      <div class="settings-shell">
+        <nav class="settings-nav">
+          ${nav.map((n, i) => `<button class="settings-nav-item${i === 0 ? ' active' : ''}" data-cat="${n.cat}">${n.label}</button>`).join('')}
+          <div class="settings-nav-spacer"></div>
+          <button class="settings-nav-done" id="sv-done-btn">Done</button>
+        </nav>
+        <div class="settings-panes" data-active="${nav[0].cat}">
+          ${panes}
+          <div class="settings-saved-indicator" id="sv-saved">Saved</div>
+        </div>
+      </div>`;
+
+    // --- Category switching ---
+    const panesWrap = settingsViewerBody.querySelector('.settings-panes');
+    const showCat = (cat) => {
+      panesWrap.dataset.active = cat;
+      settingsViewerBody.querySelectorAll('.settings-nav-item').forEach((b) => b.classList.toggle('active', b.dataset.cat === cat));
+      settingsViewerBody.querySelectorAll('.settings-pane').forEach((p) => p.classList.toggle('active', p.dataset.cat === cat));
+    };
+    settingsViewerBody.querySelectorAll('.settings-nav-item').forEach((b) => b.addEventListener('click', () => showCat(b.dataset.cat)));
+    showCat(nav[0].cat);
+
+    // --- Saved indicator ---
+    const savedEl = settingsViewerBody.querySelector('#sv-saved');
+    let savedTimer = null;
+    const flashSaved = () => {
+      if (!savedEl) return;
+      savedEl.classList.add('show');
+      clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => savedEl.classList.remove('show'), 1200);
+    };
+
+    const q = (id) => settingsViewerBody.querySelector('#' + id);
+
+    // --- Auto-save ---
+    async function saveSettings() {
+      let settings = isProject ? {} : { ...((await window.api.getSetting('global')) || {}) };
+      const cliReaders = {
+        permissionMode: () => q('sv-perm-mode')?.value || null,
+        worktree: () => q('sv-worktree')?.checked,
+        worktreeName: () => (q('sv-worktree-name')?.value || '').trim(),
+        chrome: () => q('sv-chrome')?.checked,
+        preLaunchCmd: () => (q('sv-pre-launch')?.value || '').trim(),
+        addDirs: () => (q('sv-add-dirs')?.value || '').trim(),
+      };
 
       if (isProject) {
-        // Only save fields where "use global" is unchecked
-        settingsViewerBody.querySelectorAll('.use-global-cb').forEach(cb => {
-          if (!cb.checked) {
-            const field = cb.dataset.field;
-            const fieldMap = {
-              permissionMode: () => settingsViewerBody.querySelector('#sv-perm-mode').value || null,
-              worktree: () => settingsViewerBody.querySelector('#sv-worktree').checked,
-              worktreeName: () => settingsViewerBody.querySelector('#sv-worktree-name').value.trim(),
-              chrome: () => settingsViewerBody.querySelector('#sv-chrome').checked,
-              preLaunchCmd: () => settingsViewerBody.querySelector('#sv-pre-launch').value.trim(),
-              addDirs: () => settingsViewerBody.querySelector('#sv-add-dirs').value.trim(),
-            };
-            if (fieldMap[field]) settings[field] = fieldMap[field]();
-          }
+        // Only persist CLI fields whose "use global" is unchecked.
+        settingsViewerBody.querySelectorAll('.use-global-cb').forEach((cb) => {
+          const f = cb.dataset.field;
+          if (!cb.checked && cliReaders[f]) settings[f] = cliReaders[f]();
         });
       } else {
-        settings.permissionMode = settingsViewerBody.querySelector('#sv-perm-mode').value || null;
-        settings.worktree = settingsViewerBody.querySelector('#sv-worktree').checked;
-        settings.worktreeName = settingsViewerBody.querySelector('#sv-worktree-name').value.trim();
-        settings.chrome = settingsViewerBody.querySelector('#sv-chrome').checked;
-        settings.preLaunchCmd = settingsViewerBody.querySelector('#sv-pre-launch').value.trim();
-        settings.addDirs = settingsViewerBody.querySelector('#sv-add-dirs').value.trim();
-        settings.visibleSessionCount = parseInt(settingsViewerBody.querySelector('#sv-visible-count').value) || 10;
-        settings.sessionMaxAgeDays = parseInt(settingsViewerBody.querySelector('#sv-max-age').value) || 3;
-        settings.terminalTheme = settingsViewerBody.querySelector('#sv-terminal-theme').value || 'auto';
-        settings.appearance = settingsViewerBody.querySelector('#sv-appearance').value || 'auto';
-        settings.showPlansTab = settingsViewerBody.querySelector('#sv-show-plans').checked;
-        settings.showMemoryTab = settingsViewerBody.querySelector('#sv-show-memory').checked;
-        settings.showStatsTab = settingsViewerBody.querySelector('#sv-show-stats').checked;
-        settings.soundNotifications = settingsViewerBody.querySelector('#sv-sound-notif').checked;
-        settings.systemNotifications = settingsViewerBody.querySelector('#sv-system-notif').checked;
-        settings.openSessionsReadOnly = settingsViewerBody.querySelector('#sv-open-readonly').checked;
-        settings.mcpEmulation = settingsViewerBody.querySelector('#sv-mcp-emulation').checked;
-        settings.shellProfile = settingsViewerBody.querySelector('#sv-shell-profile').value || 'auto';
-      }
-
-      // Merge form values into existing settings to preserve keys not managed by the form
-      if (!isProject) {
-        const existing = (await window.api.getSetting('global')) || {};
-        settings = { ...existing, ...settings };
+        for (const f in cliReaders) settings[f] = cliReaders[f]();
+        if (q('sv-appearance')) settings.appearance = q('sv-appearance').value || 'auto';
+        if (q('sv-terminal-theme')) settings.terminalTheme = q('sv-terminal-theme').value || 'auto';
+        if (q('sv-shell-profile')) settings.shellProfile = q('sv-shell-profile').value || 'auto';
+        if (q('sv-sound-notif')) settings.soundNotifications = q('sv-sound-notif').checked;
+        if (q('sv-system-notif')) settings.systemNotifications = q('sv-system-notif').checked;
+        if (q('sv-open-readonly')) settings.openSessionsReadOnly = q('sv-open-readonly').checked;
+        if (q('sv-visible-count')) settings.visibleSessionCount = parseInt(q('sv-visible-count').value) || 10;
+        if (q('sv-max-age')) settings.sessionMaxAgeDays = parseInt(q('sv-max-age').value) || 3;
+        if (q('sv-mcp-emulation')) settings.mcpEmulation = q('sv-mcp-emulation').checked;
+        if (q('sv-show-plans')) settings.showPlansTab = q('sv-show-plans').checked;
+        if (q('sv-show-memory')) settings.showMemoryTab = q('sv-show-memory').checked;
+        if (q('sv-show-stats')) settings.showStatsTab = q('sv-show-stats').checked;
+        // Toolbar placement
+        const toolbarSelects = settingsViewerBody.querySelectorAll('[data-toolbar-action]');
+        if (toolbarSelects.length) {
+          const placement = {};
+          toolbarSelects.forEach((s) => { placement[s.dataset.toolbarAction] = s.value; });
+          settings.toolbarIcons = placement;
+        }
       }
 
       await window.api.setSetting(settingsKey, settings);
 
-      // Update visibleSessionCount, sessionMaxAgeDays, and theme
       if (!isProject) {
-        if (settings.visibleSessionCount && typeof window._setVisibleSessionCount === 'function') {
-          window._setVisibleSessionCount(settings.visibleSessionCount);
-        }
-        if (settings.sessionMaxAgeDays && typeof window._setSessionMaxAge === 'function') {
-          window._setSessionMaxAge(settings.sessionMaxAgeDays);
-        }
-        if (settings.terminalTheme && typeof window._applyTerminalTheme === 'function') {
-          window._applyTerminalTheme(settings.terminalTheme);
-        }
-        if (typeof window._applyAppearance === 'function') {
-          window._applyAppearance(settings.appearance);
-        }
-        if (typeof window._setSoundNotifications === 'function') {
-          window._setSoundNotifications(settings.soundNotifications);
-        }
-        if (typeof window._setSystemNotifications === 'function') {
-          window._setSystemNotifications(settings.systemNotifications);
-        }
-        if (typeof window._setOpenSessionsReadOnly === 'function') {
-          window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
-        }
-        if (typeof window._applyTabVisibility === 'function') {
-          window._applyTabVisibility(settings);
-        }
+        if (settings.visibleSessionCount && typeof window._setVisibleSessionCount === 'function') window._setVisibleSessionCount(settings.visibleSessionCount);
+        if (settings.sessionMaxAgeDays && typeof window._setSessionMaxAge === 'function') window._setSessionMaxAge(settings.sessionMaxAgeDays);
+        if (settings.terminalTheme && typeof window._applyTerminalTheme === 'function') window._applyTerminalTheme(settings.terminalTheme);
+        if (typeof window._applyAppearance === 'function') window._applyAppearance(settings.appearance);
+        if (typeof window._setSoundNotifications === 'function') window._setSoundNotifications(settings.soundNotifications);
+        if (typeof window._setSystemNotifications === 'function') window._setSystemNotifications(settings.systemNotifications);
+        if (typeof window._setOpenSessionsReadOnly === 'function') window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
+        if (settings.toolbarIcons && typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(settings.toolbarIcons);
+        if (typeof window._applyTabVisibility === 'function') window._applyTabVisibility(settings);
         if (typeof refreshSidebar === 'function') refreshSidebar();
       }
-
-      // Notify if IDE Emulation changed
-      if (!isProject && settings.mcpEmulation !== mcpEmulationValue) {
-        const notice = document.createElement('div');
-        notice.className = 'settings-notice';
-        notice.textContent = 'IDE Emulation setting changed. New sessions will use the updated setting \u2014 running sessions are not affected.';
-        const saveBtn = settingsViewerBody.querySelector('#sv-save-btn');
-        saveBtn.parentElement.insertBefore(notice, saveBtn);
-        setTimeout(() => notice.remove(), 8000);
-      }
-
-      const saveBtn = settingsViewerBody.querySelector('#sv-save-btn');
-      saveBtn.textContent = '✓ Saved';
-      // Catppuccin Green, theme-aware ; --c-1e1e2e (base) flips dark/light pour le contraste du texte
-      saveBtn.style.background = 'var(--ok)';
-      saveBtn.style.color = 'var(--c-1e1e2e)';
-      setTimeout(() => closeSettingsViewer(), 600);
-    });
-
-    // Cancel button
-    settingsViewerBody.querySelector('#sv-cancel-btn').addEventListener('click', () => {
-      closeSettingsViewer();
-    });
-
-    // Check for updates button + current version + inline status
-    const checkUpdatesBtn = settingsViewerBody.querySelector('#sv-check-updates-btn');
-    if (checkUpdatesBtn) {
-      const updateStatusEl = settingsViewerBody.querySelector('#sv-update-status');
-      window.api.getAppVersion().then(v => {
-        const el = settingsViewerBody.querySelector('#sv-current-version');
-        if (el) el.textContent = `v${v}`;
-      });
-      const settingsUpdaterHandler = (type, data) => {
-        if (!updateStatusEl) return;
-        switch (type) {
-          case 'checking': updateStatusEl.textContent = '\u2014 checking\u2026'; break;
-          case 'update-available': updateStatusEl.textContent = `\u2014 v${data.version} available`; break;
-          case 'update-not-available': updateStatusEl.textContent = '\u2014 up to date'; break;
-          case 'download-progress': updateStatusEl.textContent = `\u2014 downloading ${Math.round(data.percent)}%`; break;
-          case 'update-downloaded': updateStatusEl.textContent = `\u2014 v${data.version} ready, restart to update`; break;
-          case 'error': updateStatusEl.textContent = '\u2014 check failed'; break;
-        }
-      };
-      window.api.onUpdaterEvent(settingsUpdaterHandler);
-      checkUpdatesBtn.addEventListener('click', () => {
-        window.api.updaterCheck();
-      });
+      flashSaved();
     }
 
-    // Remove project button
-    const removeBtn = settingsViewerBody.querySelector('#sv-remove-btn');
+    // Debounced trigger (immediate for toggles/selects, debounced for typing).
+    let debTimer = null;
+    const triggerSave = (immediate) => {
+      clearTimeout(debTimer);
+      if (immediate) saveSettings();
+      else debTimer = setTimeout(saveSettings, 350);
+    };
+
+    settingsViewerBody.querySelectorAll('.settings-pane input, .settings-pane select').forEach((el) => {
+      if (el.classList.contains('use-global-cb')) {
+        const map = { permissionMode: 'sv-perm-mode', worktree: 'sv-worktree', worktreeName: 'sv-worktree-name', chrome: 'sv-chrome', preLaunchCmd: 'sv-pre-launch', addDirs: 'sv-add-dirs' };
+        el.addEventListener('change', () => {
+          const input = q(map[el.dataset.field]);
+          if (input) input.disabled = el.checked;
+          triggerSave(true);
+        });
+        return;
+      }
+      const typing = el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'number');
+      el.addEventListener(typing ? 'input' : 'change', () => triggerSave(!typing));
+    });
+
+    // Done / close
+    q('sv-done-btn')?.addEventListener('click', () => { saveSettings(); closeSettingsViewer(); });
+
+    // Version string
+    const verEl = q('sv-current-version');
+    if (verEl) window.api.getAppVersion().then((v) => { verEl.textContent = `v${v}`; });
+
+    // Hide project
+    const removeBtn = q('sv-remove-btn');
     if (removeBtn) {
       removeBtn.addEventListener('click', async () => {
         if (!confirm(`Hide project "${shortName}" from Switchboard?\n\nThis hides the project from the sidebar. Your session files are not deleted.`)) return;
@@ -494,7 +330,13 @@
     }
   }
 
-  // Expose globally
+  // Close on Escape while the settings viewer is visible.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && settingsViewer.style.display !== 'none' && !settingsViewerBody.querySelector('.sb-modal-overlay')) {
+      closeSettingsViewer();
+    }
+  });
+
   window.openSettingsViewer = openSettingsViewer;
   window.closeSettingsViewer = closeSettingsViewer;
 })();
