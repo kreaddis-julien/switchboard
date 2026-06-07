@@ -62,12 +62,18 @@ For Windows/Linux, see [Building](#building).
 - **Bookmarks** (`⌘B`) — flag any message in a transcript, then jump back to it from the bookmarks list.
 - **Session tags** — label sessions (Tags action in the ⋯ menu); colored chips show in the sidebar.
 
+**Stats & transcript**
+- **Token analytics** — a "Token usage" section in the Stats tab: total input/output/cache tokens, tool-call and subagent-invocation counts, and a **per-model breakdown** (parsed from the session JSONL, which Claude's `/stats` doesn't surface).
+- **Cleaner transcript viewer** — Claude's internal XML (`<system-reminder>`, slash-command / hook wrappers) is stripped from message bodies, and each bubble gets a subtle 24h timestamp.
+
 **Sidebar & UI**
 - Session actions live behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no accidental stop/fork on a mis-hover.
 - **Settings** opens from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
 - **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers.
 - **Open sessions read-only by default** — clicking a dormant session opens its transcript without attaching a terminal; a **Resume** action (or double-click) attaches one. Addresses upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
+- **Project groups** — assign a project to a named group (project settings → Group); the sidebar renders grouped projects under a labeled divider.
+- **Relocate a moved project** ([#35](https://github.com/doctly/switchboard/pull/35)) — a project whose folder no longer exists shows a "!" badge; "Relocate…" in project settings points it at the new path.
 
 **Behavior & robustness fixes**
 - Session overview removes a session's card when you stop it; archiving a session tears down its open/pending instance so a mis-forked session actually disappears.
