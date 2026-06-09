@@ -83,7 +83,6 @@
     const showSubagentSessionsValue = fieldValue('showSubagentSessions', true);
     const soundNotificationsValue = fieldValue('soundNotifications', true);
     const systemNotificationsValue = fieldValue('systemNotifications', true);
-    const openReadOnlyValue = fieldValue('openSessionsReadOnly', true);
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
@@ -180,7 +179,6 @@
         </div>
 
         <div class="settings-pane" data-cat="sessions">
-          ${row('Open Sessions Read-Only', 'Clicking a dormant session opens its transcript (read-only). Use "Resume" in the ⋯ menu, or double-click, to attach a terminal', toggle('sv-open-readonly', openReadOnlyValue))}
           ${row('Max Visible Sessions', 'Show up to this many sessions before collapsing the rest behind "+N older"',
             `<input type="number" class="settings-input settings-input-compact" id="sv-visible-count" min="1" max="100" value="${visCountValue}">`)}
           ${row('Session Max Age (days)', 'Projects whose newest session is older than this auto-collapse in the sidebar',
@@ -284,7 +282,6 @@
         if (q('sv-shell-profile')) settings.shellProfile = q('sv-shell-profile').value || 'auto';
         if (q('sv-sound-notif')) settings.soundNotifications = q('sv-sound-notif').checked;
         if (q('sv-system-notif')) settings.systemNotifications = q('sv-system-notif').checked;
-        if (q('sv-open-readonly')) settings.openSessionsReadOnly = q('sv-open-readonly').checked;
         if (q('sv-visible-count')) settings.visibleSessionCount = Math.min(100, Math.max(1, parseInt(q('sv-visible-count').value) || 10));
         if (q('sv-max-age')) settings.sessionMaxAgeDays = Math.min(365, Math.max(1, parseInt(q('sv-max-age').value) || 3));
         if (q('sv-mcp-emulation')) settings.mcpEmulation = q('sv-mcp-emulation').checked;
@@ -320,7 +317,6 @@
         if (typeof window._applyAppearance === 'function') window._applyAppearance(settings.appearance);
         if (typeof window._setSoundNotifications === 'function') window._setSoundNotifications(settings.soundNotifications);
         if (typeof window._setSystemNotifications === 'function') window._setSystemNotifications(settings.systemNotifications);
-        if (typeof window._setOpenSessionsReadOnly === 'function') window._setOpenSessionsReadOnly(settings.openSessionsReadOnly);
         if (typeof window._setShowSubagentSessions === 'function') window._setShowSubagentSessions(settings.showSubagentSessions);
         if (settings.toolbarIcons && typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(settings.toolbarIcons, settings.toolbarOrder);
         if (typeof window._applyTabVisibility === 'function') window._applyTabVisibility(settings);

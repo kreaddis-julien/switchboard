@@ -384,9 +384,14 @@ function populateCacheViaWorker() {
 
     sendStatus(`Indexing ${msg.results.length} projects\u2026`, 'active');
 
-    // Write results to DB on main thread (fast)
+    // Write results to DB on main thread (fast). Snapshot the cached folders
+    // first so we can prune any that vanished from disk (whole project dir
+    // deleted) — the worker only returns folders that still exist.
+    const cachedFoldersBefore = new Set(getAllFolderMeta().keys());
+    const seenFolders = new Set();
     let sessionCount = 0;
     for (const { folder, projectPath, sessions, indexMtimeMs } of msg.results) {
+      seenFolders.add(folder);
       deleteCachedFolder(folder);
       deleteSearchFolder(folder);
       if (sessions.length > 0) {
@@ -408,6 +413,15 @@ function populateCacheViaWorker() {
         }));
       }
       setFolderMeta(folder, projectPath, indexMtimeMs);
+    }
+
+    // Prune folders that no longer exist on disk so deleted sessions don't
+    // linger as ghost rows in the sidebar / search index.
+    for (const folder of cachedFoldersBefore) {
+      if (!seenFolders.has(folder)) {
+        deleteCachedFolder(folder);
+        deleteSearchFolder(folder);
+      }
     }
 
     sendStatus(`Indexed ${sessionCount} sessions across ${msg.results.length} projects`, 'done');

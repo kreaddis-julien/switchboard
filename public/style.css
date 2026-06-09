@@ -339,7 +339,10 @@ body { display: flex; flex-direction: column; }
 #loading-status {
   font-size: 11px;
   color: var(--c-808098);
-  margin-left: auto;
+  /* Sit between the left-aligned icons and the right-pinned "⋯" button (which
+     carries the single auto-margin). order keeps the icons from shifting when
+     this status text appears during a scan. */
+  order: 1;
   white-space: nowrap;
 }
 
@@ -379,7 +382,9 @@ body { display: flex; flex-direction: column; }
 
 /* --- Filters popover (the "sliders" magic button) --- */
 #session-filters { position: relative; }
-.filters-magic-wrap { position: relative; display: inline-flex; }
+/* Pin the "⋯ more" button to the right edge of the toolbar, away from the
+   other icons. margin-left:auto absorbs the free space to its left. */
+.filters-magic-wrap { position: relative; display: inline-flex; margin-left: auto; order: 2; }
 #filters-toggle-btn.active {
   background: rgb(var(--on) / 0.08);
   border-color: rgb(var(--on) / 0.16);
@@ -389,7 +394,9 @@ body { display: flex; flex-direction: column; }
   display: none;
   position: absolute;
   top: 100%;
-  left: 0;
+  /* Anchored to the right since the toggle now sits at the toolbar's right edge,
+     so the panel opens leftward into the sidebar instead of overflowing. */
+  right: 0;
   margin-top: 6px;
   z-index: 50;
   background: var(--c-18181f);
@@ -998,6 +1005,10 @@ body { display: flex; flex-direction: column; }
 @keyframes spin-dot {
   to { transform: rotate(360deg); }
 }
+
+/* Refresh button: spin its icon while a manual re-scan is in flight. */
+#refresh-cache-btn.refreshing svg { animation: spin-dot 0.8s linear infinite; }
+#refresh-cache-btn:disabled { opacity: 0.6; cursor: default; }
 
 .session-item.cli-busy:not(.needs-attention) .session-summary {
   /* #39: static blue instead of shimmer-text infinite gradient sweep */
@@ -3084,8 +3095,9 @@ body { display: flex; flex-direction: column; }
 }
 
 /* No-tabs mode: gear + collapse are moved onto the filter row, where
-   #loading-status's margin-left:auto already right-aligns the cluster. Drop the
-   gear's own auto-margin so the two don't create a gap. */
+   .filters-magic-wrap carries the single auto-margin that right-pins the "⋯"
+   button. Drop the gear's own auto-margin so it joins the left cluster instead
+   of competing for the free space. */
 body.sb-no-tabs #global-settings-btn { margin-left: 0; }
 
 #global-settings-btn:hover {

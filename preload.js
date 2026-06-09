@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
   readMemory: (filePath) => ipcRenderer.invoke('read-memory', filePath),
   saveMemory: (filePath, content) => ipcRenderer.invoke('save-memory', filePath, content),
   getProjects: (showArchived) => ipcRenderer.invoke('get-projects', showArchived),
+  rebuildCache: () => ipcRenderer.invoke('rebuild-cache'),
   getActiveSessions: () => ipcRenderer.invoke('get-active-sessions'),
   getActiveTerminals: () => ipcRenderer.invoke('get-active-terminals'),
   stopSession: (id) => ipcRenderer.invoke('stop-session', id),
@@ -82,6 +83,8 @@ contextBridge.exposeInMainWorld('api', {
   // Native OS notifications + dock badge
   notifySession: (payload) => ipcRenderer.send('notify-session', payload),
   setAttentionCount: (count) => ipcRenderer.send('set-attention-count', count),
+  setActiveSession: (sessionId) => ipcRenderer.send('set-active-session', sessionId),
+  setNotificationsEnabled: (enabled) => ipcRenderer.send('set-notifications-enabled', enabled),
   onFocusSession: (callback) => {
     ipcRenderer.on('focus-session', (_event, sessionId) => callback(sessionId));
   },

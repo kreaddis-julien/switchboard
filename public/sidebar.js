@@ -646,18 +646,15 @@ function rebindSidebarEvents(projects) {
     const session = sessionMap.get(sessionId);
     if (!session) return;
 
-    // #25: read-only by default. A dormant Claude session (not open, not running)
-    // opens its transcript read-only; live sessions focus their terminal. The
-    // "Resume" menu action (or a double-click) attaches a terminal.
+    // Clicking a session opens it normally (attaches/focuses its terminal).
+    // To read a transcript without attaching, use "View messages" in the ⋯ menu.
+    // Exception: subagent sessions (sub:<parent>:<agentId>) aren't resumable Claude
+    // sessions — there's nothing to attach — so they always open read-only.
+    const isSubagent = !!(session.parentSessionId && session.agentId);
     item.onclick = () => {
-      if (openSessionsReadOnly && session.type !== 'terminal'
-          && !openSessions.has(session.sessionId) && !activePtyIds.has(session.sessionId)) {
-        showJsonlViewer(session);
-      } else {
-        openSession(session);
-      }
+      if (isSubagent) showJsonlViewer(session);
+      else openSession(session);
     };
-    item.ondblclick = () => openSession(session);
 
     if (window._decorateSessionItem) window._decorateSessionItem(item, session);
 

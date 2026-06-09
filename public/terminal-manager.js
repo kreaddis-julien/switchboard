@@ -113,12 +113,25 @@ function safeFit(entry) {
   }
 }
 
+// Clear the WebGL glyph atlas and force a full redraw. xterm's WebGL renderer
+// caches a glyph texture atlas; when a terminal is revealed (display:none ->
+// visible, session switch, grid<->single toggle) WITHOUT a dimension change,
+// safeFit alone won't repaint and stale glyphs linger as "ghosts". Flushing the
+// atlas + refreshing every row clears them. No-op on the DOM-renderer fallback.
+function forceRepaint(entry) {
+  try {
+    entry.webglAddon?.clearTextureAtlas();
+    entry.terminal.refresh(0, entry.terminal.rows - 1);
+  } catch { /* DOM renderer has no atlas; refresh is harmless but guard anyway */ }
+}
+
 // Fit a terminal that just became visible (from display:none or reparent).
 // Defers to requestAnimationFrame so the container has dimensions.
 function fitAndScroll(entry) {
   const wasAtBottom = isAtBottom(entry.terminal);
   requestAnimationFrame(() => {
     safeFit(entry);
+    forceRepaint(entry);
     if (wasAtBottom) {
       entry.terminal.scrollToBottom();
     }
@@ -210,11 +223,13 @@ function createTerminalEntry(session) {
   // GPU-accelerated rendering via WebGL — drops renderer+compositor CPU ~50-70%.
   // Must be loaded after terminal.open() (needs attached DOM). Fails silently on
   // machines without WebGL support; xterm falls back to the default DOM renderer.
+  let webglAddon = null;
   try {
-    const webglAddon = new WebglAddon.WebglAddon();
+    webglAddon = new WebglAddon.WebglAddon();
     webglAddon.onContextLoss(() => webglAddon.dispose());
     terminal.loadAddon(webglAddon);
   } catch (e) {
+    webglAddon = null;
     console.warn('[terminal] WebGL addon failed, falling back to DOM renderer', e);
   }
 
@@ -262,7 +277,7 @@ function createTerminalEntry(session) {
   searchBar.querySelector('.terminal-search-prev').addEventListener('click', () => searchAddon.findPrevious(searchInput.value, searchOpts));
   searchBar.querySelector('.terminal-search-close').addEventListener('click', closeSearchBar);
 
-  const entry = { terminal, element: container, fitAddon, searchAddon, openSearchBar, closeSearchBar, session, closed: false };
+  const entry = { terminal, element: container, fitAddon, searchAddon, webglAddon, openSearchBar, closeSearchBar, session, closed: false };
   openSessions.set(sessionId, entry);
 
   // Wire up IPC (use entry.session.sessionId so fork re-keying works)

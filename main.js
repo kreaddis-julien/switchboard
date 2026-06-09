@@ -13,6 +13,15 @@ log.transports.console.level = app.isPackaged ? 'info' : 'debug';
 
 try { require('electron-reloader')(module, { watchRenderer: true }); } catch {};
 
+// Notifications must fire while the app is in the background. Chromium otherwise
+// "backgrounds" the renderer once its window is occluded (covered by another app)
+// and defers the IPC that triggers a notification until the window is refocused —
+// so an attention/finished alert only appeared when Switchboard was already in the
+// foreground. Disable occlusion-based backgrounding (covers the "covered window"
+// case); the per-window `backgroundThrottling: false` covers minimized/hidden.
+// The cost is some renderer CPU while hidden, acceptable for a session monitor.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+
 // Clean env for child processes — strip Electron internals that cause nested
 // Electron apps (or node-pty inside them) to malfunction.
 const cleanPtyEnv = Object.fromEntries(
@@ -159,6 +168,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Keep the renderer running at full cadence when the window is hidden or
+      // minimized so notification-triggering IPC isn't deferred until refocus.
+      backgroundThrottling: false,
     },
   });
 
@@ -225,6 +237,10 @@ function createWindow() {
   };
   mainWindow.on('resize', saveBounds);
   mainWindow.on('move', saveBounds);
+
+  // Returning to the app while viewing a session acknowledges its pending alert,
+  // so the dock badge clears for the session you're now actually looking at.
+  mainWindow.on('focus', () => clearSessionNotifications(notifyActiveSessionId));
 
   // Also save immediately before close (debounce may not have flushed)
   mainWindow.on('close', () => {
@@ -470,12 +486,21 @@ ipcMain.handle('open-external', (_event, url) => {
   return openExternalOnce(url);
 });
 
-// --- IPC: native OS notifications + dock badge ---
-ipcMain.on('notify-session', (_event, payload) => {
+// --- Native OS notifications + dock badge (decided in MAIN) ---
+// Notifications are decided and fired here, not in the renderer, so they land
+// even when the renderer is suspended — occluded, minimized, or (the common
+// macOS case) on another Space. The renderer keeps only the in-app sound and
+// the sidebar's visual badges. Main learns the focused session via
+// `set-active-session` so it never alerts the session you're already looking at.
+let notifyActiveSessionId = null;       // session the user is currently viewing
+let notificationsEnabled = true;        // mirrors the renderer's systemNotifications setting
+const notifyAttention = new Set();      // sessions flagged "needs attention" (dedup)
+const notifyResponseReady = new Set();  // sessions that finished while not focused
+
+function showOsNotification(body, sessionId) {
   try {
     if (!Notification.isSupported()) return;
-    const { title, body, sessionId } = payload || {};
-    const n = new Notification({ title: title || 'Switchboard', body: body || '', silent: true });
+    const n = new Notification({ title: 'Switchboard', body: body || '', silent: true });
     n.on('click', () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         if (mainWindow.isMinimized()) mainWindow.restore();
@@ -485,12 +510,74 @@ ipcMain.on('notify-session', (_event, payload) => {
       }
     });
     n.show();
-  } catch (e) { log.warn('[notify-session]', e?.message || e); }
+  } catch (e) { log.warn('[notify]', e?.message || e); }
+}
+
+function notifyLabelFor(sessionId) {
+  const s = activeSessions.get(sessionId);
+  if (s) {
+    if (s.isPlainTerminal) return 'Terminal';
+    const base = String(s.projectPath || '').split('/').filter(Boolean).pop();
+    if (base) return base;
+  }
+  return 'Session';
+}
+
+function refreshDockBadge() {
+  try {
+    const n = notificationsEnabled ? new Set([...notifyAttention, ...notifyResponseReady]).size : 0;
+    app.setBadgeCount(n);
+  } catch (e) { log.warn('[badge]', e?.message || e); }
+}
+
+// The "active" session is only genuinely on-screen when the Switchboard window
+// itself is focused. If the user switched to another app or another macOS Space,
+// even the active session is out of sight and must still notify — otherwise the
+// common case (launch a prompt, step away, wait) stays silent, which is exactly
+// what notifications are for.
+function userViewingSession(sessionId) {
+  return sessionId === notifyActiveSessionId
+    && !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused();
+}
+
+// Deduped: a session notifies at most once per state until acknowledged (viewed)
+// or, for "finished", until it resumes work.
+function notifySessionAttention(sessionId) {
+  if (!notificationsEnabled || userViewingSession(sessionId) || notifyAttention.has(sessionId)) return;
+  notifyAttention.add(sessionId);
+  log.info(`[notify] attention session=${sessionId}`);
+  showOsNotification(`${notifyLabelFor(sessionId)} needs your attention`, sessionId);
+  refreshDockBadge();
+}
+function notifySessionFinished(sessionId) {
+  if (!notificationsEnabled || userViewingSession(sessionId) || notifyResponseReady.has(sessionId)) return;
+  notifyResponseReady.add(sessionId);
+  log.info(`[notify] finished session=${sessionId}`);
+  showOsNotification(`${notifyLabelFor(sessionId)} finished`, sessionId);
+  refreshDockBadge();
+}
+function clearSessionNotifications(sessionId) {
+  if (!sessionId) return;
+  const a = notifyAttention.delete(sessionId);
+  const b = notifyResponseReady.delete(sessionId);
+  if (a || b) refreshDockBadge();
+}
+
+// Legacy bridge — kept harmless; the renderer no longer drives notifications.
+ipcMain.on('notify-session', (_event, payload) => {
+  const { body, sessionId } = payload || {};
+  showOsNotification(body, sessionId);
 });
 
-ipcMain.on('set-attention-count', (_event, count) => {
-  try { app.setBadgeCount(Math.max(0, parseInt(count, 10) || 0)); }
-  catch (e) { log.warn('[set-attention-count]', e?.message || e); }
+// The renderer reports which session is focused (so we don't alert the one being
+// viewed) and pushes the notifications on/off setting.
+ipcMain.on('set-active-session', (_event, sessionId) => {
+  notifyActiveSessionId = sessionId || null;
+  clearSessionNotifications(sessionId); // viewing a session acknowledges its alerts
+});
+ipcMain.on('set-notifications-enabled', (_event, enabled) => {
+  notificationsEnabled = enabled !== false;
+  refreshDockBadge();
 });
 
 // --- IPC: MCP bridge ---
@@ -578,6 +665,22 @@ ipcMain.handle('get-projects', async (_event, showArchived) => {
   } catch (err) {
     console.error('Error listing projects:', err);
     return [];
+  }
+});
+
+// --- IPC: rebuild-cache ---
+// Manual full re-scan, triggered by the sidebar refresh button. Forces a fresh
+// worker pass that re-reads every project, rebuilds the search index, and prunes
+// rows for sessions/folders that have since been deleted (ghost cleanup). Awaits
+// completion so the renderer can stop its spinner; the scan emits
+// 'projects-changed' on finish, which reloads the sidebar.
+ipcMain.handle('rebuild-cache', async () => {
+  try {
+    await populateCacheViaWorker();
+    return { ok: true };
+  } catch (err) {
+    console.error('Error rebuilding cache:', err);
+    return { ok: false, error: String(err && err.message || err) };
   }
 });
 
@@ -1373,6 +1476,8 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('cli-busy-state', currentId, true);
             }
+            // Resumed work → no longer "finished"; let the next idle re-notify.
+            if (notifyResponseReady.delete(currentId)) refreshDockBadge();
           } else if (isIdle && session._cliBusy) {
             session._cliBusy = false;
             session._oscIdle = true;
@@ -1380,6 +1485,8 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
             if (mainWindow && !mainWindow.isDestroyed()) {
               mainWindow.webContents.send('cli-busy-state', currentId, false);
             }
+            // Fire "finished" from main so it lands even when the window is hidden.
+            notifySessionFinished(currentId);
           }
         }
       }
@@ -1405,6 +1512,11 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
           log.info(`[OSC 9] session=${currentId} message="${payload}"`);
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal-notification', currentId, payload);
+          }
+          // Decide + fire the OS notification in main so it works when the
+          // renderer is suspended (occluded / minimized / on another Space).
+          if (/attention|approval|permission|needs your|wants to enter/i.test(payload)) {
+            notifySessionAttention(currentId);
           }
         }
       }
@@ -1458,6 +1570,7 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
         mainWindow.webContents.send('process-exited', sessionId, exitCode);
       }
     }
+    clearSessionNotifications(realId);
     activeSessions.delete(realId);
     // Clean up the original key too in case transition detection hasn't run yet
     activeSessions.delete(sessionId);

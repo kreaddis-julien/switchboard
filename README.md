@@ -70,8 +70,9 @@ For Windows/Linux, see [Building](#building).
 - Session actions live behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no accidental stop/fork on a mis-hover.
 - **Settings** opens from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
 - **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path).
-- **Open sessions read-only by default** — clicking a dormant session opens its transcript without attaching a terminal; a **Resume** action (or double-click) attaches one. Addresses upstream [#25](https://github.com/doctly/switchboard/issues/25).
+- **Read a transcript without attaching** — clicking a session opens it normally (attaches/focuses its terminal); to inspect a dormant session's transcript read-only, use **"View messages"** in the **"⋯" menu**. Subagent sessions, which aren't resumable, always open read-only. Relates to upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
+- **Manual refresh** — a rescan button in the sidebar toolbar (inside the "⋯ more" menu by default; pin it to the visible row via Settings) forces a full re-index and **prunes ghost rows** for sessions or whole project folders deleted on disk, then refreshes the search index.
 - **Hide a folder** from the sidebar (project gear → Hide Project) and **restore it** from a managed list (Settings → Sidebar → Hidden folders) — distinct from Archive, which acts on sessions.
 - **Project groups** — assign a project to a named group (project settings → Group); the sidebar renders grouped projects under a labeled divider.
 - **Relocate a moved project** ([#35](https://github.com/doctly/switchboard/pull/35)) — a project whose folder no longer exists shows a "!" badge; "Relocate…" in project settings points it at the new path.
@@ -80,6 +81,7 @@ For Windows/Linux, see [Building](#building).
 - Session overview removes a session's card when you stop it; archiving a session tears down its open/pending instance so a mis-forked session actually disappears.
 - **Scan reads capped at 2 MB** so a huge `.jsonl` can't OOM the cache scan (the viewer still loads the full file on demand). *(ported from [folknor](https://github.com/folknor/switchboard))*
 - **Throttled cache↔filesystem reconcile** — the sidebar paints with two `get-projects` calls, so the on-disk reconcile sweep is throttled (1 s) to run once per paint instead of twice. *(ported from [JeanBaptisteRenard](https://github.com/JeanBaptisteRenard/switchboard))*
+- **WebGL ghost-glyph fix** — revealing a terminal (session switch, grid↔single toggle) now clears the WebGL texture atlas and forces a full repaint, so stale glyphs no longer linger as ghosts. *(adapted from upstream [#63](https://github.com/doctly/switchboard/pull/63))*
 
 **Curated upstream PRs merged in**
 - Security: [#32](https://github.com/doctly/switchboard/pull/32) (shell-injection → argv arrays), [#27](https://github.com/doctly/switchboard/pull/27) (XSS sanitization + CSP + IPC path guards, partial).

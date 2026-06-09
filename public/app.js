@@ -41,6 +41,27 @@ const settingsViewer = document.getElementById('settings-viewer');
 const globalSettingsBtn = document.getElementById('global-settings-btn');
 const addProjectBtn = document.getElementById('add-project-btn');
 const resortBtn = document.getElementById('resort-btn');
+const refreshCacheBtn = document.getElementById('refresh-cache-btn');
+if (refreshCacheBtn) {
+  refreshCacheBtn.addEventListener('click', async () => {
+    if (refreshCacheBtn.disabled) return;
+    refreshCacheBtn.disabled = true;
+    refreshCacheBtn.classList.add('refreshing');
+    try {
+      // Forces a full re-scan: rebuilds the search index and prunes ghost rows
+      // for deleted sessions/folders. The scan emits 'projects-changed' on
+      // completion, which reloads the sidebar (debounced).
+      await window.api.rebuildCache();
+      // Re-run the active search so results reflect the fresh index.
+      if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input'));
+    } catch (e) {
+      console.error('[refresh] rebuild-cache failed', e);
+    } finally {
+      refreshCacheBtn.disabled = false;
+      refreshCacheBtn.classList.remove('refreshing');
+    }
+  });
+}
 const jsonlViewer = document.getElementById('jsonl-viewer');
 const jsonlViewerTitle = document.getElementById('jsonl-viewer-title');
 const jsonlViewerSessionId = document.getElementById('jsonl-viewer-session-id');
@@ -57,6 +78,9 @@ function setActiveSession(id) {
   activeSessionId = id;
   if (id) sessionStorage.setItem('activeSessionId', id);
   else sessionStorage.removeItem('activeSessionId');
+  // Tell main which session is focused so it suppresses notifications for it and
+  // clears its alerts (notifications are now fired by the main process).
+  if (window.api?.setActiveSession) window.api.setActiveSession(id);
   // Update file panel to show this session's open files/diffs
   if (typeof switchPanel === 'function') switchPanel(id);
 }
@@ -191,11 +215,9 @@ window._setSoundNotifications = (v) => { soundNotificationsEnabled = v !== false
 let systemNotificationsEnabled = true;
 window._setSystemNotifications = (v) => {
   systemNotificationsEnabled = v !== false;
-  // Refléter immédiatement le réglage sur le badge (le vider si désactivé).
-  if (typeof updateAttentionBadge === 'function') updateAttentionBadge();
+  // Main owns the notifications + dock badge now — push the setting to it.
+  if (window.api?.setNotificationsEnabled) window.api.setNotificationsEnabled(systemNotificationsEnabled);
 };
-let openSessionsReadOnly = true;
-window._setOpenSessionsReadOnly = (v) => { openSessionsReadOnly = v !== false; };
 let showSubagentSessions = true;
 window._setShowSubagentSessions = (v) => { showSubagentSessions = v !== false; };
 
@@ -250,28 +272,14 @@ function _sessionLabel(sessionId) {
 }
 
 // Notification native macOS (Notification Center) ; clic -> focus la session
-function notifyOS(sessionId, kind) {
-  if (!systemNotificationsEnabled) return;
-  const label = _sessionLabel(sessionId);
-  const body = kind === 'attention' ? `${label} needs your attention` : `${label} finished`;
-  // ipcRenderer.send ne peut échouer que sur un bug de bridge (préload/refactor) :
-  // on logue au lieu de l'avaler silencieusement.
-  try { window.api.notifySession({ title: 'Switchboard', body, sessionId }); }
-  catch (e) { console.error('[notifyOS] notification bridge failed', e); }
-}
+// OS notifications are now fired by the main process (see main.js) so they work
+// when this renderer is suspended (occluded / minimized / on another Space). The
+// renderer only plays the in-app sound and toggles the sidebar's visual badges.
 
-// Badge du dock = nombre de sessions distinctes en attente d'action (union
-// attention + response-ready ; une même session ne compte qu'une fois).
-function updateAttentionBadge() {
-  let n = 0;
-  if (systemNotificationsEnabled) {
-    const ids = new Set(attentionSessions);
-    for (const id of responseReadySessions) ids.add(id);
-    n = ids.size;
-  }
-  try { window.api.setAttentionCount(n); }
-  catch (e) { console.error('[updateAttentionBadge] badge bridge failed', e); }
-}
+// The dock badge is now owned by the main process (so it stays correct when the
+// renderer is suspended on another macOS Space). This stub stays because callers
+// throughout the renderer invoke it after mutating the visual attention sets.
+function updateAttentionBadge() { /* badge handled in main */ }
 
 // Central activity dispatcher
 function setActivity(sessionId, active) {
@@ -291,8 +299,7 @@ function setActivity(sessionId, active) {
         item.classList.remove('cli-busy');
         item.classList.add('response-ready');
       }
-      playNotifSound('finished'); // #66
-      notifyOS(sessionId, 'finished');
+      playNotifSound('finished'); // #66 (OS notification is fired by main.js)
       updateAttentionBadge();
     }
   }
@@ -499,8 +506,7 @@ window.api.onTerminalNotification((sessionId, message) => {
     const item = document.querySelector(`.session-item[data-session-id="${sessionId}"]`);
     if (item) item.classList.add('needs-attention');
     if (isNewAttention) {
-      playNotifSound('attention'); // #66
-      notifyOS(sessionId, 'attention');
+      playNotifSound('attention'); // #66 (OS notification is fired by main.js)
       updateAttentionBadge();
     }
   } else if (/waiting for your input/i.test(message)) {
@@ -1235,9 +1241,10 @@ initGridObservers();
       { key: 'today',      id: 'today-toggle',     label: 'Today only' },
       { key: 'archive',    id: 'archive-toggle',   label: 'Show archived' },
       { key: 'resort',     id: 'resort-btn',       label: 'Re-sort sessions' },
+      { key: 'refresh',    id: 'refresh-cache-btn', label: 'Refresh sessions (rescan)' },
       { key: 'addProject', id: 'add-project-btn',  label: 'Add project' },
     ];
-    const TOOLBAR_DEFAULT = { pin: 'visible', running: 'visible', overview: 'visible', collapse: 'visible', bookmarks: 'visible', today: 'popover', archive: 'popover', resort: 'popover', addProject: 'popover' };
+    const TOOLBAR_DEFAULT = { pin: 'visible', running: 'visible', overview: 'visible', collapse: 'visible', bookmarks: 'visible', today: 'popover', archive: 'popover', resort: 'popover', refresh: 'popover', addProject: 'popover' };
     window._toolbarActions = TOOLBAR_ACTIONS;
     window._toolbarDefault = TOOLBAR_DEFAULT;
     // placement: { key -> 'visible'|'popover' } ; order: optional [key,...] custom order.
@@ -1328,7 +1335,8 @@ setTimeout(() => {
     }
     window._setSoundNotifications(global.soundNotifications);
     window._setSystemNotifications(global.systemNotifications);
-    window._setOpenSessionsReadOnly(global.openSessionsReadOnly);
+    // Seed main with the restored focused session so it doesn't alert it on boot.
+    if (window.api?.setActiveSession) window.api.setActiveSession(activeSessionId);
     window._setShowSubagentSessions(global.showSubagentSessions);
     if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons, global.toolbarOrder);
     window._applyTabVisibility(global);
