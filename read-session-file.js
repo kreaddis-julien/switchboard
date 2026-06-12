@@ -124,6 +124,34 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
         textContent += text.slice(0, 500) + '\n';
       }
     }
+
+    // Titles (custom-title from /rename, ai-title from Claude) are appended near
+    // the END of the file. On files larger than the scan cap the head-only read
+    // above misses a fresh rename, leaving a stale name in the sidebar. Scan a
+    // bounded tail window for the latest title and override. Cheap: only lines
+    // containing a title marker are parsed.
+    if (stat.size > SCAN_READ_CAP) {
+      try {
+        const TAIL_CAP = 512 * 1024;
+        const start = Math.max(SCAN_READ_CAP, stat.size - TAIL_CAP);
+        const fd = fs.openSync(filePath, 'r');
+        try {
+          const tlen = stat.size - start;
+          const tbuf = Buffer.allocUnsafe(tlen);
+          const tb = fs.readSync(fd, tbuf, 0, tlen, start);
+          let tail = tbuf.toString('utf8', 0, tb);
+          const firstNl = tail.indexOf('\n');
+          if (firstNl >= 0) tail = tail.slice(firstNl + 1); // drop leading partial line
+          for (const line of tail.split('\n')) {
+            if (line.indexOf('custom-title') === -1 && line.indexOf('ai-title') === -1) continue;
+            let e; try { e = JSON.parse(line); } catch { continue; }
+            if (e.type === 'custom-title' && e.customTitle) customTitle = e.customTitle;
+            else if (e.type === 'ai-title' && e.aiTitle) aiTitle = e.aiTitle;
+          }
+        } finally { fs.closeSync(fd); }
+      } catch { /* best-effort: a stale title is better than crashing the scan */ }
+    }
+
     if (!summary || messageCount < 1) return null;
 
     if (isSubagent) {
