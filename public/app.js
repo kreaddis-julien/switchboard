@@ -487,6 +487,9 @@ window.api.onProcessExited((sessionId, exitCode) => {
     gridViewerCount.textContent = gridCards.size + ' session' + (gridCards.size !== 1 ? 's' : '');
   }
 
+  // The session is now closed (banner shown). Re-render so it drops out of the
+  // "running only" filter and its running indicator clears.
+  refreshSidebar();
   pollActiveSessions();
 });
 
@@ -710,6 +713,10 @@ async function confirmAndStopSession(sessionId) {
   if (!confirm('Stop this session?')) return;
   await window.api.stopSession(sessionId);
   activePtyIds.delete(sessionId);
+  // Mark the entry closed now so it drops out of the "running only" filter
+  // immediately, without waiting for the async process-exited event.
+  const _stopped = openSessions.get(sessionId);
+  if (_stopped) _stopped.closed = true;
   if (!gridViewActive && activeSessionId === sessionId) {
     setActiveSession(null);
     terminalHeader.style.display = 'none';

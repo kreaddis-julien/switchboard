@@ -184,7 +184,10 @@ function renderProjects(projects, resort) {
     // listed as peers — drop them from the main list before grouping.
     let filtered = project.sessions.filter(s => !(s.sessionId && s.sessionId.startsWith('sub:')));
     if (showStarredOnly) filtered = filtered.filter(s => s.starred);
-    if (showRunningOnly) filtered = filtered.filter(s => activePtyIds.has(s.sessionId));
+    // "Running only" = live PTY, or a just-launched/forked session whose PTY isn't
+    // confirmed yet (pending). A pending session that has since exited (entry.closed)
+    // is NOT running — it lingers in pendingSessions only to keep its relaunch row.
+    if (showRunningOnly) filtered = filtered.filter(s => activePtyIds.has(s.sessionId) || (pendingSessions.has(s.sessionId) && !openSessions.get(s.sessionId)?.closed));
     if (showTodayOnly) {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
