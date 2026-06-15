@@ -28,6 +28,17 @@ const cleanPtyEnv = Object.fromEntries(
   Object.entries(process.env).filter(([k]) =>
     !k.startsWith('ELECTRON_') &&
     !k.startsWith('GOOGLE_API_KEY') &&
+    // Strip Claude-Code-injected runtime vars. If Switchboard is itself launched
+    // from within a Claude Code session (e.g. `npm start` from a terminal inside a
+    // session, or a nested terminal), these leak into every spawned claude session
+    // and make it run as a CHILD/SUBAGENT (CLAUDE_CODE_SESSION_ID / _CHILD_SESSION /
+    // _FORK_SUBAGENT) — which does NOT persist a transcript, so the session shows as
+    // "New session" forever and /rename never appears. Switchboard re-adds the one it
+    // needs (CLAUDE_CODE_SSE_PORT) per session. CLAUDE_CONFIG_DIR is intentionally NOT
+    // stripped (prefix is CLAUDE_CODE_, not CLAUDE_).
+    !k.startsWith('CLAUDE_CODE_') &&
+    k !== 'CLAUDECODE' &&
+    k !== 'CLAUDE_EFFORT' &&
     k !== 'NODE_OPTIONS' &&
     k !== 'ORIGINAL_XDG_CURRENT_DESKTOP' &&
     k !== 'WT_SESSION'
@@ -168,6 +179,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      // Sandbox the renderer AND the preload. Safe here: preload only requires the
+      // `electron` module and uses process.platform / webUtils, all available in a
+      // sandboxed preload; the renderer uses no Node APIs.
+      sandbox: true,
       // Keep the renderer running at full cadence when the window is hidden or
       // minimized so notification-triggering IPC isn't deferred until refocus.
       backgroundThrottling: false,
@@ -626,6 +641,14 @@ ipcMain.handle('watch-file', (_event, filePath) => {
         }
       }, 300);
     });
+    // Without this, an OS-level watch error (inotify ENOSPC/EMFILE, fd loss) emits
+    // an unhandled 'error' on the FSWatcher and crashes the main process (no global
+    // uncaughtException handler). Reap the dead watcher so a later re-watch recreates it.
+    watcher.on('error', (err) => {
+      log.warn('[watch-file] watcher error for', resolved, err.message);
+      try { watcher.close(); } catch (_) {}
+      fileWatchers.delete(resolved);
+    });
     fileWatchers.set(resolved, watcher);
     return { ok: true };
   } catch (err) {
@@ -737,8 +760,10 @@ ipcMain.handle('read-plan', (_event, filename) => {
 ipcMain.handle('save-plan', (_event, filePath, content) => {
   try {
     const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(PLANS_DIR)) {
-      return { ok: false, error: 'path outside plans directory' };
+    // Prefix match WITH a trailing separator (so `plans-evil/` can't pass) and
+    // restrict to .md, mirroring isAllowedMemoryPath.
+    if ((resolved !== PLANS_DIR && !resolved.startsWith(PLANS_DIR + path.sep)) || !resolved.toLowerCase().endsWith('.md')) {
+      return { ok: false, error: 'path outside plans directory or not a .md file' };
     }
     fs.writeFileSync(resolved, content, 'utf8');
     return { ok: true };
@@ -1650,6 +1675,17 @@ function startProjectsWatcher() {
     const folders = new Set(pendingFolders);
     pendingFolders.clear();
 
+    // Folders that have a fork still waiting to be linked to its real session file.
+    // Always re-run transition detection for them, even if they didn't fire this
+    // cycle: a busy unrelated folder (e.g. an active session writing elsewhere)
+    // would otherwise starve the fork's folder and the re-key would never run.
+    const forkFolders = new Set();
+    for (const s of activeSessions.values()) {
+      if (s.forkFrom && !s.realSessionId && !s.exited && s.projectFolder && !folders.has(s.projectFolder)) {
+        forkFolders.add(s.projectFolder);
+      }
+    }
+
     let changed = false;
     for (const folder of folders) {
       const folderPath = path.join(PROJECTS_DIR, folder);
@@ -1660,6 +1696,11 @@ function startProjectsWatcher() {
         deleteCachedFolder(folder);
       }
       changed = true;
+    }
+    // Detection only (no cache refresh / no forced notify): detectSessionTransitions
+    // emits 'session-forked' itself when it matches, which updates the renderer.
+    for (const folder of forkFolders) {
+      if (fs.existsSync(path.join(PROJECTS_DIR, folder))) detectSessionTransitions(folder);
     }
 
     if (changed) {

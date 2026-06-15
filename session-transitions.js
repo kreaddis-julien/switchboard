@@ -34,7 +34,12 @@ function readNewSessionSignals(filePath) {
     let parentSessionId = null;
     let hasSnapshots = false;
     for (const line of lines) {
-      const entry = JSON.parse(line);
+      // Per-line guard: the 512 KB head read almost always cuts the LAST line
+      // mid-JSON. Without this, that single throw bubbled to the function-level
+      // catch and discarded every signal already collected (notably hasSnapshots),
+      // breaking fork detection for files whose snapshots span past 512 KB.
+      let entry;
+      try { entry = JSON.parse(line); } catch { continue; }
       // Skip snapshot lines — they carry no fork/session signals
       if (entry.type === 'file-history-snapshot') { hasSnapshots = true; continue; }
       if (entry.forkedFrom) forkedFrom = entry.forkedFrom.sessionId;
