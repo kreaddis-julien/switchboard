@@ -27,15 +27,15 @@ import { cpp } from '@codemirror/lang-cpp';
 // (mode auto inclus). Remplace l'ancien thème Dracula figé.
 const MOCHA = {
   base: '#1e1e2e', mantle: '#181825', text: '#cdd6f4', overlay0: '#6c7086',
-  overlay1: '#7f849c', accent: '#b4befe', selection: '#414458',
-  selectionMatch: '#3e4058', activeLine: 'rgba(180,190,254,0.06)',
+  overlay1: '#7f849c', accent: '#d97757', selection: '#414458',
+  selectionMatch: '#3e4058', activeLine: 'rgba(217,119,87,0.07)',
   bracket: 'rgba(137,180,250,0.30)', mauve: '#cba6f7', blue: '#89b4fa',
   sky: '#89dceb', peach: '#fab387', yellow: '#f9e2af', green: '#a6e3a1', red: '#f38ba8',
 };
 const LATTE = {
   base: '#eff1f5', mantle: '#e6e9ef', text: '#4c4f69', overlay0: '#9ca0b0',
-  overlay1: '#8c8fa1', accent: '#7287fd', selection: '#bcc0cc',
-  selectionMatch: '#ccd0da', activeLine: 'rgba(114,135,253,0.08)',
+  overlay1: '#8c8fa1', accent: '#c2562f', selection: '#bcc0cc',
+  selectionMatch: '#ccd0da', activeLine: 'rgba(194,86,47,0.08)',
   bracket: 'rgba(30,102,245,0.25)', mauve: '#8839ef', blue: '#1e66f5',
   sky: '#04a5e5', peach: '#fe640b', yellow: '#df8e1d', green: '#40a02b', red: '#d20f39',
 };
