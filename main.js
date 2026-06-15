@@ -622,6 +622,9 @@ ipcMain.handle('save-file-for-panel', async (_event, filePath, content) => {
     if (isSensitivePath(resolved)) return { ok: false, error: 'access to sensitive path denied' };
     if (!fs.existsSync(resolved)) return { ok: false, error: 'File does not exist' };
     fs.writeFileSync(resolved, content, 'utf8');
+    // Close the sub-second window between save and search: invalidate the
+    // memory FTS signature so the next get-memories call reindexes.
+    if (resolved.endsWith('.md')) invalidateFtsSignature('memory');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -975,6 +978,29 @@ function scanMdFiles(dir) {
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// FTS dirty-flag: skip the full reindex when the file set hasn't changed.
+// get-memories computes a cheap signature (sorted filePath + mtime) from the
+// collected file list and compares it to the last-indexed signature. If equal,
+// the expensive deleteSearchType + per-file readFileSync + upsertSearchEntries
+// block is skipped. The result payload is always built & returned; only the FTS
+// side-effect is gated. save-memory clears the signature so a sub-second write
+// (mtime may not advance) still forces a fresh reindex on the next tab open.
+// ---------------------------------------------------------------------------
+const _ftsIndexSignature = new Map(); // type → last-indexed signature
+function computeIndexSignature(files) {
+  const sorted = [...files].sort((a, b) => a.filePath < b.filePath ? -1 : a.filePath > b.filePath ? 1 : 0);
+  return sorted.map(f => `${f.filePath}\x00${f.mtimeMs}\x00${f.size}`).join('\n');
+}
+function shouldReindex(type, sig) {
+  if (_ftsIndexSignature.get(type) === sig) return false;
+  _ftsIndexSignature.set(type, sig);
+  return true;
+}
+function invalidateFtsSignature(type) {
+  _ftsIndexSignature.delete(type);
+}
+
 ipcMain.handle('get-memories', () => {
   const global = getSetting('global') || {};
   const hiddenProjects = new Set(global.hiddenProjects || []);
@@ -1070,18 +1096,25 @@ ipcMain.handle('get-memories', () => {
 
   const result = { global: { files: globalFiles }, projects };
 
-  // Index all files for FTS
+  // Index all files for FTS — skipped when the file set is unchanged (dirty-flag).
   try {
-    deleteSearchType('memory');
     const allFiles = [
       ...globalFiles.map(f => ({ ...f, label: 'Global' })),
       ...projects.flatMap(p => p.files.map(f => ({ ...f, label: p.shortName }))),
     ];
-    upsertSearchEntries(allFiles.map(f => ({
-      id: f.filePath, type: 'memory', folder: null,
-      title: f.label + ' ' + f.filename,
-      body: fs.readFileSync(f.filePath, 'utf8'),
+    const sig = computeIndexSignature(allFiles.map(f => ({
+      filePath: f.filePath,
+      mtimeMs: new Date(f.modified).getTime(),
+      size: 0, // .md files don't carry size in scanMdFiles; mtime + path is sufficient
     })));
+    if (shouldReindex('memory', sig)) {
+      deleteSearchType('memory');
+      upsertSearchEntries(allFiles.map(f => ({
+        id: f.filePath, type: 'memory', folder: null,
+        title: f.label + ' ' + f.filename,
+        body: fs.readFileSync(f.filePath, 'utf8'),
+      })));
+    }
   } catch {}
 
   return result;
@@ -1109,6 +1142,9 @@ ipcMain.handle('save-memory', (_event, filePath, content) => {
     if (!isAllowedMemoryPath(resolved)) return { ok: false, error: 'path not allowed' };
     if (!fs.existsSync(resolved)) return { ok: false, error: 'file does not exist' };
     fs.writeFileSync(resolved, content, 'utf8');
+    // Invalidate the FTS signature so the next get-memories call reindexes
+    // (guards sub-second writes where the mtime might not advance).
+    invalidateFtsSignature('memory');
     return { ok: true };
   } catch (err) {
     console.error('Error saving memory file:', err);
