@@ -84,3 +84,19 @@ Aucune lib npm nouvelle. Requiert : binaire `git` (worktrees), CLI `claude` (PAT
 - **Opérationnel** : runs autonomes payants → stop-loss + flag obligatoires.
 - **GUI** : board à refaire au design maison.
 - **Coût/temps** : sous-système ~8-9 k lignes → effort L, plusieurs incréments.
+
+## 9. État au 2026-06-15 (VALIDÉ end-to-end)
+
+Branche `agent-teams-proto` (= `main` + commits jusqu'à `ef08d03`, poussée sur `fork`). Tout porté/testé (~176 tests). Run réel réussi : plan → approbation → worker édite+commit en worktree → 2 reviewers approuvent → master merge → stop-loss budget OK. Nesting sidebar (workers sous le master) FAIT. **Prérequis config machine** (cf. mémoire `switchboard-agent-teams-proto`) : `~/.claude/settings.json` `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB:"0"` + trappe Agent Teams dans `~/.claude/hooks/check-readonly.sh` (backups `.bak-*`). Modèles : Anthropic-only + local (garde-fou egress dans `profiles.js`, opt-out `agentTeamsAllowExternalModels`).
+
+## 10. Suivis à implémenter (prochaine session)
+
+### (b) Option « auto-approve » par run (sauter le gate human-in-the-loop de /sb-plan)
+Par défaut `/sb-plan` planifie **puis attend l'approbation user** avant `/sb-decompose` + `status:active` + `/sb-orchestrate` (gate volontaire). Rendre ça optionnel par run :
+1. **`orch-protocol.js`** : ajouter `autoApprove: false` à `DEFAULT_POLICY`. La validation policy (boucle ~l.267-275) ne vérifie que `maxBudgetUsd`/`maxOutputTokens` (numériques) + `validateCmd` → un booléen `autoApprove` passe (préservé via `{...DEFAULT_POLICY, ...policy}` dans `createRun`). Rien d'autre à valider.
+2. **`orch-templates.js` `rolePrompt('master', run, ...)`** : si `run.policy?.autoApprove`, **append** au prompt master une consigne qui surcharge l'attente, p.ex. : « AUTO-APPROVE actif : n'attends PAS l'approbation utilisateur après le plan — enchaîne immédiatement /sb-decompose pour les chunks prêts, mets run.json status=active, puis lance /sb-orchestrate. » (Le prompt système prime sur le texte de /sb-plan.)
+3. **`public/orchestration-view.js` `showNewRunDialog`** : ajouter une case **« Auto-approve plan (no human gate) »** (défaut DÉCOCHÉ = sûr). À la création : `if (autoApproveCheckbox.checked) policy.autoApprove = true;` (dans l'objet `policy` déjà envoyé à `createRun`).
+- Défaut OFF = sûr (l'humain relit le plan) ; coché = autonomie totale depuis l'objectif. Tester un run avec la case cochée → doit décomposer + spawner sans intervention.
+
+### (c) Polish CSS du board aux tokens shadcn
+Le CSS Agent Teams (~154 l. en fin de `public/style.css`, bloc « Agent Teams (orchestration) ») a été porté tel quel d'ivandobsky avec des **couleurs GitHub-ish en dur** (`#58a6ff`, `#56d364`, `#d29922`, `#f85149`, `#a371f7`, `#adbac7`…). La modale est déjà theme-aware (faite). Reste à remapper les **pills** (`.orch-run-status-*`, `.orch-status-*`, `.orch-cx-*`, `.orch-lens-*`) sur nos tokens : `--ok`/`--ok-rgb` (vert), `--warn`/`--warn-rgb` (pêche), `--err`/`--err-rgb` (rouge), `--amber`/`--amber-rgb` (jaune), `--info` si dispo (bleu) ou `--mauve` (violet), et fonds `rgb(var(--on)/0.x)`. Cohérence avec l'accent orange `--accent`. Purement cosmétique, zéro risque fonctionnel.
