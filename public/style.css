@@ -412,6 +412,13 @@ body { display: flex; flex-direction: column; }
 #filters-popover > button { margin: 0; }
 /* Collapse sits at the far right of whichever row holds it (tab strip or filter row). */
 #sidebar-collapse-btn { margin-left: auto; }
+/* No-tabs mode: the collapse button is moved into the filter row, which ALREADY
+   pins the "more" button with margin-left:auto. A second auto-margin here makes
+   flexbox split the free space evenly between the two, stranding the collapse
+   button in the middle. Drop its auto-margin and order it last so the single
+   auto-margin (on .filters-magic-wrap, order:2) pushes [more][collapse] together
+   to the far right. */
+.sb-no-tabs #sidebar-collapse-btn { margin-left: 0; order: 3; }
 
 #star-toggle.active {
   background: rgb(var(--amber-rgb) / 0.1);
@@ -556,17 +563,20 @@ body { display: flex; flex-direction: column; }
   gap: 6px;
   user-select: none;
   transition: all 0.15s;
-  background: transparent;
+  /* Opaque (sidebar colour) instead of transparent+backdrop-filter: a
+     backdrop-filter creates a containing block for position:fixed descendants,
+     which broke the floating project actions menu (it was positioned relative to
+     the header, off-screen). Solid bg keeps the sticky header readable over
+     scrolled content without that side effect. */
+  background: var(--c-18181f);
   margin: 0;
   position: sticky;
   top: 0;
   z-index: 2;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .project-header:hover {
-  background: rgb(var(--on) / 0.03);
+  background: var(--c-1a1a2e);
   color: var(--c-d8d8f0);
 }
 
@@ -575,6 +585,78 @@ body { display: flex; flex-direction: column; }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Project actions "⋯" menu (mirrors the session actions menu) --- */
+.project-menu-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.6;
+  background: none;
+  border: none;
+  color: var(--c-7a7a90);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.12s, background 0.15s, color 0.15s;
+}
+.project-header:hover .project-menu-btn,
+.project-header.menu-open .project-menu-btn { opacity: 1; }
+.project-menu-btn:hover,
+.project-header.menu-open .project-menu-btn { background: rgb(var(--on) / 0.08); color: var(--c-b0b0c4); }
+
+.project-actions {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  min-width: 178px;
+  background: var(--c-1a1a2e);
+  border: 1px solid rgb(var(--on) / 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+/* Floating dropdown (position set by JS at the "..." button). */
+.project-header.menu-open .project-actions {
+  display: flex;
+  position: fixed;
+  z-index: 1000;
+}
+/* sticky creates a stacking context, so the fixed menu above is trapped in THIS
+   header's context and would be covered by the next (sticky) project header. Raise
+   the open header above its siblings so its menu paints on top. */
+.project-header.menu-open { z-index: 1000; }
+/* Override the in-header icon-button styling so they render as full-width menu rows. */
+.project-actions .project-new-btn,
+.project-actions .project-schedule-btn,
+.project-actions .project-settings-btn,
+.project-actions .project-archive-btn {
+  width: 100%;
+  height: auto;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  opacity: 1;
+  margin: 0;
+  padding: 5px 8px;
+  gap: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  color: var(--c-d0d0e8);
+  font-weight: 500;
+}
+.project-actions button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.project-actions button:hover { background: rgb(var(--on) / 0.08); }
+.project-menu-label {
+  color: var(--c-d0d0e8);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
   white-space: nowrap;
 }
 
@@ -2916,7 +2998,8 @@ body { display: flex; flex-direction: column; }
 #collapse-all-btn,
 #bookmarks-btn,
 #resort-btn,
-#add-project-btn {
+#add-project-btn,
+#refresh-cache-btn {
   background: transparent;
   border: 1px solid rgb(var(--on) / 0.08);
   color: var(--c-7a7a90);
@@ -2940,12 +3023,14 @@ body { display: flex; flex-direction: column; }
 #bookmarks-btn { margin-left: 2px; }
 #resort-btn { margin-left: 2px; }
 #add-project-btn { margin-left: 2px; }
+#refresh-cache-btn { margin-left: 2px; }
 
 #grid-toggle-btn:hover,
 #collapse-all-btn:hover,
 #bookmarks-btn:hover,
 #resort-btn:hover,
-#add-project-btn:hover {
+#add-project-btn:hover,
+#refresh-cache-btn:hover {
   background: rgb(var(--on) / 0.04);
   border-color: rgb(var(--on) / 0.12);
   color: var(--c-888);
