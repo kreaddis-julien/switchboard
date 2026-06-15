@@ -142,7 +142,8 @@ if (window.matchMedia) {
 // back to the always-visible Sessions tab.
 window._applyTabVisibility = (s) => {
   s = s || {};
-  const map = { plans: s.showPlansTab !== false, memory: s.showMemoryTab !== false, stats: s.showStatsTab !== false };
+  // Refonte: nav 4 onglets toujours visible (segmented pill facon mock), independamment des reglages.
+  const map = { plans: true, memory: true, stats: true };
   for (const [tab, show] of Object.entries(map)) {
     const btn = document.querySelector(`.sidebar-tab[data-tab="${tab}"]`);
     if (btn) btn.style.display = show ? '' : 'none';
@@ -151,27 +152,16 @@ window._applyTabVisibility = (s) => {
       if (sessionsBtn) sessionsBtn.click();
     }
   }
-  // With no optional tab shown, the whole tab strip is redundant (Sessions is the
-  // default view). Move the gear + collapse controls down onto the filter row and
-  // hide the empty strip, so everything sits on one row. Restored when any tab returns.
-  const anyShown = map.plans || map.memory || map.stats;
+  // Refonte: la pilule d'onglets reste toujours visible ; le bouton collapse vit
+  // dans la rangee de filtres (pilule d'onglets propre, sans bouton parasite).
   const tabsRow = document.getElementById('sidebar-tabs');
   const filtersRow = document.getElementById('session-filters');
   const collapse = document.getElementById('sidebar-collapse-btn');
   const sessionsTabBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
-  document.body.classList.toggle('sb-no-tabs', !anyShown);
-  // The gear lives in the filters popover now; only the collapse button moves
-  // between the tab strip (tabbed) and the filter row right side (no-tabs).
-  if (!anyShown) {
-    if (collapse && filtersRow && collapse.parentElement !== filtersRow) filtersRow.appendChild(collapse);
-    if (tabsRow) tabsRow.style.display = 'none';
-  } else {
-    if (tabsRow) {
-      if (collapse && collapse.parentElement !== tabsRow) tabsRow.appendChild(collapse);
-      tabsRow.style.display = '';
-    }
-    if (sessionsTabBtn) sessionsTabBtn.style.display = '';
-  }
+  document.body.classList.remove('sb-no-tabs');
+  if (tabsRow) tabsRow.style.display = '';
+  if (sessionsTabBtn) sessionsTabBtn.style.display = '';
+  if (collapse && filtersRow && collapse.parentElement !== filtersRow) filtersRow.appendChild(collapse);
 };
 window._applyTerminalTheme = (themeName) => {
   currentThemeName = themeName;
@@ -836,7 +826,9 @@ setInterval(() => {
     if (!meta) continue;
     const session = sessionMap.get(sessionId);
     const msgSuffix = session?.messageCount ? ' \u00b7 ' + session.messageCount + ' msgs' : '';
-    meta.textContent = formatDate(time) + msgSuffix;
+    meta.textContent = formatDate(time);
+    const row = item.querySelector('.session-row');
+    if (row) row.title = formatDate(time) + msgSuffix;
   }
 }, 30000);
 

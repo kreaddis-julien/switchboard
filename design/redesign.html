@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Switchboard — refonte</title>
+<style>
+@import url('https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5/index.css');
+@import url('https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5/index.css');
+
+:root, [data-theme="dark"]{
+  --bg:oklch(0.155 0.004 270);
+  --bg-2:oklch(0.185 0.004 270);
+  --panel:oklch(0.203 0.005 270);
+  --elev:oklch(0.235 0.006 270);
+  --line:oklch(1 0 0 / 0.07);
+  --line-2:oklch(1 0 0 / 0.13);
+  --fg:oklch(0.975 0 0);
+  --fg-2:oklch(0.78 0.01 270);
+  --fg-3:oklch(0.62 0.012 270);
+  --fg-4:oklch(0.50 0.012 270);
+  --accent:oklch(0.705 0.15 42);
+  --accent-2:oklch(0.62 0.15 42);
+  --accent-fg:oklch(0.99 0.01 60);
+  --green:oklch(0.78 0.17 155);
+  --blue:oklch(0.72 0.13 240);
+  --red:oklch(0.68 0.2 18);
+  --r:8px;
+  --sans:'Geist Variable',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'Geist Mono Variable',ui-monospace,monospace;
+}
+[data-theme="light"]{
+  --bg:oklch(0.985 0.002 270);
+  --bg-2:oklch(0.97 0.003 270);
+  --panel:oklch(1 0 0);
+  --elev:oklch(1 0 0);
+  --line:oklch(0 0 0 / 0.08);
+  --line-2:oklch(0 0 0 / 0.14);
+  --fg:oklch(0.22 0.006 270);
+  --fg-2:oklch(0.40 0.01 270);
+  --fg-3:oklch(0.55 0.012 270);
+  --fg-4:oklch(0.66 0.012 270);
+  --accent:oklch(0.60 0.16 42);
+  --accent-2:oklch(0.54 0.16 42);
+  --accent-fg:oklch(0.99 0.01 60);
+  --green:oklch(0.62 0.16 155);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--sans);background:var(--bg);color:var(--fg);
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv11","ss03";letter-spacing:-0.006em;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;letter-spacing:inherit}
+svg{display:block}
+.mono{font-family:var(--mono);font-feature-settings:"ss01";letter-spacing:0}
+::selection{background:oklch(0.705 0.15 42 / 0.3)}
+
+#app{display:grid;grid-template-columns:268px 1fr;grid-template-rows:1fr auto;height:100vh}
+
+/* ============ SIDEBAR ============ */
+#side{grid-row:1/3;display:flex;flex-direction:column;background:var(--bg);border-right:1px solid var(--line);min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:14px 14px 10px}
+.mark{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:linear-gradient(140deg,var(--accent),var(--accent-2));box-shadow:0 1px 0 oklch(1 0 0 /.15) inset,0 4px 12px oklch(0.705 0.15 42 /.25)}
+.mark svg{width:16px;height:16px}
+.brand .name{font-weight:600;font-size:14px;letter-spacing:-0.02em}
+.brand .ver{font-family:var(--mono);font-size:10px;color:var(--fg-4);margin-left:-4px}
+.brand .spam{flex:1}
+.kbd{font-family:var(--mono);font-size:10.5px;color:var(--fg-3);background:var(--bg-2);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:1px 5px;line-height:1.5}
+
+.side-pad{padding:0 10px}
+.tabs{display:flex;gap:2px;background:var(--bg-2);padding:3px;border-radius:9px;margin-bottom:9px;border:1px solid var(--line)}
+.tab{flex:1;height:28px;display:grid;place-items:center;border-radius:6px;color:var(--fg-3);transition:.13s}
+.tab:hover{color:var(--fg)}
+.tab.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 2px oklch(0 0 0 /.3),0 0 0 1px var(--line)}
+.tab svg{width:15px;height:15px}
+
+.search{position:relative;display:flex;align-items:center;margin-bottom:6px}
+.search svg{position:absolute;left:10px;width:14px;height:14px;color:var(--fg-4)}
+.search input{width:100%;height:32px;padding:0 34px;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;color:var(--fg);font-size:12.5px;outline:none;transition:.13s}
+.search input::placeholder{color:var(--fg-4)}
+.search input:focus{border-color:var(--accent);background:var(--bg);box-shadow:0 0 0 3px oklch(0.705 0.15 42 /.18)}
+.search .k{position:absolute;right:8px}
+
+.list{flex:1;overflow-y:auto;padding:6px 6px 14px}
+.list::-webkit-scrollbar{width:9px}
+.list::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px;border:3px solid transparent;background-clip:content-box}
+
+.grp{margin-top:10px}
+.grp:first-child{margin-top:2px}
+.grp-h{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:var(--fg-4);font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase}
+.grp-h .p{color:var(--fg-3)}
+.grp-h .n{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:0;color:var(--fg-4);background:var(--bg-2);border:1px solid var(--line);min-width:18px;height:16px;display:grid;place-items:center;border-radius:5px;padding:0 4px}
+
+.it{position:relative;display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:7px;cursor:default;transition:background .1s}
+.it:hover{background:oklch(1 0 0 /.04)}
+[data-theme="light"] .it:hover{background:oklch(0 0 0 /.035)}
+.it.on{background:oklch(0.705 0.15 42 /.12)}
+.it.on::before{content:"";position:absolute;left:-6px;top:7px;bottom:7px;width:3px;border-radius:3px;background:var(--accent)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--fg-4);flex:none}
+.dot.run{background:var(--green);box-shadow:0 0 0 3px oklch(0.78 0.17 155 /.18)}
+.dot.busy{background:var(--blue);box-shadow:0 0 0 3px oklch(0.72 0.13 240 /.18)}
+.it .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--fg-2)}
+.it.on .t,.it:hover .t{color:var(--fg)}
+.it.on .t{font-weight:500}
+.it .meta{font-family:var(--mono);font-size:10px;color:var(--fg-4);flex:none}
+
+/* ============ MAIN ============ */
+#main{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.top{display:flex;align-items:center;gap:11px;height:52px;padding:0 16px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--bg-2),var(--bg))}
+.crumb{display:flex;align-items:center;gap:7px;min-width:0}
+.crumb .proj{color:var(--fg-4);font-size:12px}
+.crumb .sep{color:var(--fg-4)}
+.crumb .ses{font-weight:600;font-size:14px;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:5px;height:21px;padding:0 8px;border-radius:6px;font-family:var(--mono);font-size:10.5px;color:var(--fg-3);background:var(--bg-2);border:1px solid var(--line)}
+.chip svg{width:11px;height:11px;color:var(--fg-4)}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px 0 8px;border-radius:999px;font-size:11.5px;font-weight:500;background:oklch(0.78 0.17 155 /.13);color:var(--green);border:1px solid oklch(0.78 0.17 155 /.28)}
+.pill .pd{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.top .sp{flex:1}
+.grp-btn{display:flex;background:var(--bg-2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.grp-btn button{display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;color:var(--fg-2);font-size:12.5px;font-weight:500;border-right:1px solid var(--line);transition:.12s}
+.grp-btn button:last-child{border-right:none}
+.grp-btn button:hover{background:oklch(1 0 0 /.05);color:var(--fg)}
+.grp-btn svg{width:14px;height:14px}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:8px;font-size:12.5px;font-weight:500;transition:.12s}
+.btn svg{width:14px;height:14px}
+.btn.pri{background:var(--accent);color:var(--accent-fg);box-shadow:0 1px 0 oklch(1 0 0 /.18) inset,0 2px 8px oklch(0.705 0.15 42 /.3)}
+.btn.pri:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--red);border:1px solid oklch(0.68 0.2 18 /.3);background:oklch(0.68 0.2 18 /.1)}
+.btn.danger:hover{background:oklch(0.68 0.2 18 /.16)}
+
+/* terminal body */
+.term{flex:1;overflow:auto;padding:18px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--fg-2)}
+.term::-webkit-scrollbar{width:11px}
+.term::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px;border:3px solid transparent;background-clip:content-box}
+.ln{white-space:pre-wrap}
+.usr{color:var(--fg)}
+.usr::before{content:"› ";color:var(--accent);font-weight:600}
+.dim{color:var(--fg-4)}
+.acc{color:var(--accent)}
+.ok{color:var(--green)}
+.bl{color:var(--blue)}
+.card{margin:10px 0;border:1px solid var(--line);border-radius:10px;background:var(--bg-2);overflow:hidden}
+.card .hd{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--fg-3);background:oklch(1 0 0 /.02)}
+[data-theme="light"] .card .hd{background:oklch(0 0 0 /.02)}
+.card .hd svg{width:13px;height:13px;color:var(--fg-4)}
+.card .bd{padding:10px 12px}
+.diff-add{color:var(--green)}
+.diff-del{color:var(--red)}
+.cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:text-bottom;animation:bl 1.1s steps(1) infinite;border-radius:1px}
+@keyframes bl{50%{opacity:0}}
+
+/* status bar */
+#status{grid-column:1/3;display:flex;align-items:center;gap:14px;height:28px;padding:0 14px;font-family:var(--mono);font-size:10.5px;color:var(--fg-4);background:var(--bg);border-top:1px solid var(--line)}
+#status .s{width:1px;height:11px;background:var(--line-2)}
+#status .sp{flex:1}
+#status b{color:var(--green);font-weight:400}
+
+/* ============ COMMAND PALETTE ============ */
+#cmdk{position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;padding-top:14vh;background:oklch(0 0 0 /.5);backdrop-filter:blur(3px);z-index:50}
+#cmdk.show{display:flex}
+.pal{width:580px;max-width:92vw;background:var(--elev);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 20px 60px oklch(0 0 0 /.5),0 0 0 1px oklch(1 0 0 /.04);overflow:hidden}
+.pal-s{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.pal-s svg{width:17px;height:17px;color:var(--fg-3)}
+.pal-s input{flex:1;background:none;border:none;outline:none;color:var(--fg);font-size:15px}
+.pal-s input::placeholder{color:var(--fg-4)}
+.pal-b{padding:7px;max-height:340px;overflow:auto}
+.pal-g{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--fg-4);padding:8px 10px 4px}
+.cmd{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:8px;color:var(--fg-2)}
+.cmd .ic{width:17px;height:17px;color:var(--fg-3);flex:none}
+.cmd.on{background:oklch(0.705 0.15 42 /.14);color:var(--fg)}
+.cmd.on .ic{color:var(--accent)}
+.cmd .lab{flex:1}
+.cmd .sc{display:flex;gap:3px}
+.theme-tog{position:fixed;bottom:38px;right:16px;z-index:10;height:30px;padding:0 12px;border-radius:999px;font-size:11.5px;color:var(--fg-2);background:var(--panel);border:1px solid var(--line-2);box-shadow:0 6px 18px oklch(0 0 0 /.3)}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside id="side">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 1200 1200" fill="#fff"><path d="M233.96 800.21 468.64 668.54l4-11.44-4-6.36h-11.44l-39.22-2.42-134.09-3.62-116.3-4.83-112.67-6.04-28.35-6.04L0 592.75l2.74-17.48 23.84-16.03 34.15 2.98 75.46 6.4 113.24 7.81 82.15 5.43 121.69 12.64h19.33l2.74-7.81-6.6-4.83-5.16-4.83-117.18-79.41-126.85-83.92-66.44-48.32-35.92-24.48-18.12-22.95-7.81-50.1 32.62-35.92 43.81 2.98 11.19 2.98 44.38 34.15 94.79 73.37 123.79 91.17 18.12 15.06 7.25-5.15.89-3.63-8.13-13.61-67.33-121.69-71.84-123.79-31.97-51.3-8.46-30.77c-2.98-12.64-5.15-23.27-5.15-36.24L312.32 13.21 332.86 6.6l49.53 6.61 20.86 18.12 30.77 70.39 49.85 110.82 77.32 150.68 22.63 44.7 12.08 41.4 4.51 12.64h7.81v-7.25l6.36-84.89 11.76-104.21 11.44-134.09 3.95-37.77 18.68-45.26 37.13-24.48 28.99 13.85 23.84 34.15-3.3 22.07-14.17 92.13-27.79 144.32-18.12 96.64h10.55l12.08-12.08 48.89-64.91 82.15-102.68 36.24-40.75 42.28-45.02 27.14-21.42h51.3l37.77 56.13-16.91 57.99-52.83 67.01-43.81 56.78-62.82 84.56-39.22 67.65 3.62 5.4 9.34-.89 141.91-30.2 76.67-13.85 91.49-15.71 41.4 19.33 4.51 19.65-16.27 40.19-97.85 24.16-114.77 22.95-170.9 40.43-2.09 1.53 2.42 2.98 76.99 7.25 32.94 1.77h80.62l150.12 11.19 39.22 25.93 23.52 31.73-3.95 24.16-60.4 30.77-81.5-19.33-190.23-45.26-65.24-16.27h-9.02v5.4l54.36 53.15 99.62 89.96 124.75 115.97 6.36 28.67-16.03 22.63-16.91-2.42-109.61-82.47-42.28-37.13-95.76-80.62h-6.36v8.46l22.07 32.29 116.54 175.17 6.04 53.72-8.46 17.48-30.2 10.55-33.18-6.04-68.21-95.76-70.39-107.84-56.78-96.64-6.93 3.95-33.5 360.89-15.71 18.44-36.24 13.85-30.2-22.95-16.03-37.13 16.03-73.37 19.33-95.76 15.71-76.11 14.17-94.55 8.46-31.41-.56-2.09-6.93.89-71.28 97.85-108.4 146.5-85.77 91.81-20.54 8.13-35.6-18.44 3.3-32.94 19.89-29.32 118.71-151.01 71.6-93.58 46.23-54.04-.32-7.81h-2.74L205.29 929.4l-56.13 7.25-24.16-22.63 2.98-37.13 11.44-12.08 94.79-65.24-.32-.32Z"/></svg></span>
+      <div><div class="name">Switchboard</div></div>
+      <span class="spam"></span>
+      <span class="kbd">⌘K</span>
+    </div>
+
+    <div class="side-pad">
+      <div class="tabs">
+        <button class="tab on" title="Sessions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></button>
+        <button class="tab" title="Plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></button>
+        <button class="tab" title="Agent files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg></button>
+        <button class="tab" title="Stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg></button>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Rechercher une session">
+        <span class="kbd k">/</span>
+      </div>
+    </div>
+
+    <div class="list">
+      <div class="grp">
+        <div class="grp-h"><span class="p">Users/</span>kreaddis-julien<span class="n">3</span></div>
+        <div class="it on"><span class="dot run"></span><span class="t">Refonte design shadcn + Geist</span><span class="meta">now</span></div>
+        <div class="it"><span class="dot busy"></span><span class="t">Audit config Claude Code</span><span class="meta">2m</span></div>
+        <div class="it"><span class="dot"></span><span class="t">Build &amp; install de l'app</span><span class="meta">14:01</span></div>
+      </div>
+      <div class="grp">
+        <div class="grp-h"><span class="p">Documents/</span>psbe-gemaddis-erp<span class="n">2</span></div>
+        <div class="it"><span class="dot run"></span><span class="t">Migration v17 → v19</span><span class="meta">1h</span></div>
+        <div class="it"><span class="dot"></span><span class="t">Investigation lenteurs prod</span><span class="meta">3h</span></div>
+      </div>
+      <div class="grp">
+        <div class="grp-h"><span class="p">Documents/</span>maisons-metral<span class="n">1</span></div>
+        <div class="it"><span class="dot"></span><span class="t">Custom report devis</span><span class="meta">2j</span></div>
+      </div>
+      <div class="grp">
+        <div class="grp-h"><span class="p">Documents/</span>baouw<span class="n">1</span></div>
+        <div class="it"><span class="dot"></span><span class="t">Refonte page d'accueil</span><span class="meta">5j</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+    <div class="top">
+      <div class="crumb">
+        <span class="proj">kreaddis-julien</span><span class="sep">/</span>
+        <span class="ses">Refonte design shadcn + Geist</span>
+      </div>
+      <span class="chip mono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6"/></svg>8785f24d</span>
+      <span class="chip mono">opus-4.8 · xhigh</span>
+      <span class="chip mono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M18 6a3 3 0 0 1-3 3H9"/></svg>redesign-shadcn</span>
+      <span class="pill"><span class="pd"></span> En cours</span>
+      <span class="sp"></span>
+      <div class="grp-btn">
+        <button title="Messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/></svg></button>
+        <button title="Fork"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5m13 13h5v-5M8 21H3v-5"/></svg></button>
+      </div>
+      <button class="btn danger"><svg viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="8" height="8" rx="1.5"/></svg> Stop</button>
+    </div>
+
+    <div class="term">
+      <div class="ln usr">je veux une vraie refonte graphique de pro, clean, moderne, avec du Geist</div>
+      <div class="ln dim">  ⎿  frontend-design · langage Geist/Vercel · accent orange Claude</div>
+      <div class="ln"><span class="acc">●</span> Refonte du système de composants</div>
+      <div class="ln dim">  échelle d'espacement 4px · échelle typo · focus rings · élévations · cmd palette</div>
+      <div class="card">
+        <div class="hd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg> Edit · public/style.css <span style="margin-left:auto" class="dim mono">+148 −96</span></div>
+        <div class="bd">
+          <div class="ln"><span class="diff-add">+ :root { --accent: oklch(0.705 0.15 42); --r: 8px; }</span></div>
+          <div class="ln"><span class="diff-add">+ .btn.pri { box-shadow: 0 1px 0 oklch(1 0 0 /.18) inset; }</span></div>
+          <div class="ln"><span class="diff-del">- --accent: #b4befe; /* catppuccin lavender */</span></div>
+        </div>
+      </div>
+      <div class="ln"><span class="ok">✓</span> Sidebar, header, command palette, boutons, inputs, badges redessinés</div>
+      <div class="ln dim">  Geist Sans (UI) · Geist Mono (id, branche, modèle, tokens)</div>
+      <div class="ln">&nbsp;</div>
+      <div class="ln usr">parfait, on porte ça dans l'app<span class="cursor"></span></div>
+    </div>
+  </main>
+
+  <div id="status">
+    <span><b>●</b> 2 en cours</span><span class="s"></span>
+    <span>5 sessions · 4 projets</span><span class="s"></span>
+    <span>redesign-shadcn</span>
+    <span class="sp"></span>
+    <span>Geist · Geist Mono</span><span class="s"></span>
+    <span>tokens 1.2M / 1M ctx</span><span class="s"></span>
+    <span>v0.0.30</span>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div id="cmdk">
+  <div class="pal">
+    <div class="pal-s">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+      <input placeholder="Tape une commande ou cherche une session…" autofocus>
+      <span class="kbd">esc</span>
+    </div>
+    <div class="pal-b">
+      <div class="pal-g">Actions</div>
+      <div class="cmd on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span class="lab">Nouvelle session</span><span class="sc"><span class="kbd">⌘</span><span class="kbd">N</span></span></div>
+      <div class="cmd"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5m13 13h5v-5M8 21H3v-5"/></svg><span class="lab">Fork la session active</span><span class="sc"><span class="kbd">⌘</span><span class="kbd">F</span></span></div>
+      <div class="cmd"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3m10-10h-3M5 12H2"/></svg><span class="lab">Basculer le thème</span><span class="sc"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">L</span></span></div>
+      <div class="pal-g">Sessions récentes</div>
+      <div class="cmd"><span class="ic" style="display:grid;place-items:center"><span class="dot run" style="width:7px;height:7px;border-radius:50%;background:var(--green)"></span></span><span class="lab">Migration v17 → v19 <span class="dim mono" style="font-size:11px">· psbe-gemaddis-erp</span></span></div>
+      <div class="cmd"><span class="ic" style="display:grid;place-items:center"><span style="width:7px;height:7px;border-radius:50%;background:var(--fg-4)"></span></span><span class="lab">Custom report devis <span class="dim mono" style="font-size:11px">· maisons-metral</span></span></div>
+    </div>
+  </div>
+</div>
+
+<button class="theme-tog" onclick="var h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark'">◐ thème</button>
+<script>
+  addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.getElementById('cmdk').classList.toggle('show')}if(e.key==='Escape')document.getElementById('cmdk').classList.remove('show')});
+</script>
+</body>
+</html>

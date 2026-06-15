@@ -52,9 +52,13 @@ const { encodeProjectPath } = require('./encode-project-path');
 
 
 
-// --- Auto-updater (only in packaged builds) ---
+// --- Auto-updater (DISABLED in this fork) ---
+// FORK redesign-shadcn: l'updater est totalement desactive en usage normal pour
+// que les builds locaux (refonte shadcn + Geist) ne soient jamais ecrases par une
+// release upstream doctly/switchboard. Mise a jour = rebuild local uniquement.
+// Reactivable ponctuellement avec FORCE_UPDATER=1 (test).
 let autoUpdater = null;
-if (app.isPackaged || process.env.FORCE_UPDATER) {
+if (process.env.FORCE_UPDATER) {
   autoUpdater = require('electron-updater').autoUpdater;
   autoUpdater.logger = log;
   // FORK: never auto-download/install upstream releases — they would overwrite

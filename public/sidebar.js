@@ -348,7 +348,11 @@ function renderProjects(projects, resort) {
     header.className = 'project-header';
     header.id = 'ph-' + fId;
     const shortName = project.projectPath.split('/').filter(Boolean).slice(-2).join('/');
-    header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${shortName}</span>`;
+    const _np = shortName.split('/');
+    const _leaf = _np.pop();
+    const _prefix = _np.length ? _np.join('/') + '/' : '';
+    const _count = (project.sessions || []).filter(s => !(s.sessionId && s.sessionId.startsWith('sub:'))).length;
+    header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${_prefix ? `<span class="project-path">${escapeHtml(_prefix)}</span>` : ''}${escapeHtml(_leaf)}</span>${_count ? `<span class="project-count">${_count}</span>` : ''}`;
 
     // Project actions live behind a "⋯" menu (mirrors the session actions menu):
     // a floating dropdown opened by a deliberate click, keeping the header clean.
@@ -864,9 +868,11 @@ function buildSessionItem(session) {
   summaryEl.className = 'session-summary';
   summaryEl.textContent = displayName;
 
+  // Ligne compacte (facon maquette) : l'heure va a droite sur la meme ligne que
+  // le titre. Le nb de messages part dans le tooltip (survol) pour ne pas charger.
   const metaEl = document.createElement('div');
   metaEl.className = 'session-meta';
-  metaEl.textContent = timeStr + (session.messageCount ? ' \u00b7 ' + session.messageCount + ' msgs' : '');
+  metaEl.textContent = timeStr;
 
   if (session.type === 'terminal') {
     const badge = document.createElement('span');
@@ -875,7 +881,7 @@ function buildSessionItem(session) {
     summaryEl.prepend(badge);
   }
   info.appendChild(summaryEl);
-  info.appendChild(metaEl);
+  row.title = timeStr + (session.messageCount ? ' · ' + session.messageCount + ' msgs' : '');
 
   // Action buttons container
   const actions = document.createElement('div');
@@ -942,6 +948,7 @@ function buildSessionItem(session) {
   row.appendChild(pin);
   row.appendChild(dot);
   row.appendChild(info);
+  row.appendChild(metaEl);
   row.appendChild(menuBtn);
   item.appendChild(row);
   item.appendChild(actions);

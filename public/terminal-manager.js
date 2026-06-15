@@ -186,7 +186,7 @@ function createTerminalEntry(session) {
 
   const terminal = new Terminal({
     fontSize: 12,
-    fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+    fontFamily: "'Geist Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
     theme: TERMINAL_THEME,
     cursorBlink: false,
     scrollback: 10000,

@@ -3,6 +3,18 @@ const TERMINAL_THEMES = {
   // Resolved at runtime by getTerminalTheme() to a light/dark palette based on
   // the app appearance (data-theme / prefers-color-scheme). No palette of its own.
   auto: { label: 'Auto (match app)' },
+  sbDark: {
+    label: 'Switchboard Dark',
+    background: '#18181d', foreground: '#e6e6ea', cursor: '#d97757', cursorAccent: '#18181d', selectionBackground: '#3a3a46',
+    black: '#2a2a32', red: '#f08aa0', green: '#9fd6a3', yellow: '#e6c27a', blue: '#8fb0e8', magenta: '#c9a0ec', cyan: '#86cfd6', white: '#c9c9d2',
+    brightBlack: '#5a5a66', brightRed: '#f4a0b2', brightGreen: '#b5e0b8', brightYellow: '#efd29a', brightBlue: '#a8c2ef', brightMagenta: '#d6b8f2', brightCyan: '#a3dde2', brightWhite: '#f0f0f4',
+  },
+  sbLight: {
+    label: 'Switchboard Light',
+    background: '#ffffff', foreground: '#2a2a30', cursor: '#c2562f', cursorAccent: '#ffffff', selectionBackground: '#dfe1e6',
+    black: '#3a3a42', red: '#c0395a', green: '#3a8a4a', yellow: '#9a6a1a', blue: '#3a66c0', magenta: '#8a45c0', cyan: '#2a8a90', white: '#b8b8c0',
+    brightBlack: '#7a7a86', brightRed: '#d0405f', brightGreen: '#46a05a', brightYellow: '#b0801f', brightBlue: '#4a78d0', brightMagenta: '#9a52d0', brightCyan: '#3399a0', brightWhite: '#1a1a20',
+  },
   switchboard: {
     label: 'Switchboard',
     background: '#1a1a2e', foreground: '#e0e0e0', cursor: '#e94560', selectionBackground: '#3a3a5e',
@@ -64,7 +76,7 @@ function resolvedAppearance() {
 function getTerminalTheme() {
   let name = currentThemeName;
   // 'auto' follows the app appearance: Catppuccin Latte (light) / Mocha (dark).
-  if (name === 'auto') name = resolvedAppearance() === 'light' ? 'catppuccinLatte' : 'catppuccinMocha';
+  if (name === 'auto') name = resolvedAppearance() === 'light' ? 'sbLight' : 'sbDark';
   return TERMINAL_THEMES[name] || TERMINAL_THEMES.switchboard;
 }
 let TERMINAL_THEME = getTerminalTheme();
