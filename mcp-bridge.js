@@ -178,6 +178,10 @@ async function handleToolCall(entry, rpcId, params, log) {
   }
 }
 
+// Max time a diff request waits on the renderer before we auto-resolve it so the
+// CLI's blocking tools/call can't hang forever.
+const DIFF_TIMEOUT_MS = 5 * 60 * 1000;
+
 async function handleOpenDiff(entry, rpcId, args, log) {
   const { old_file_path, new_file_contents, tab_name } = args;
 
@@ -204,9 +208,17 @@ async function handleOpenDiff(entry, rpcId, args, log) {
       newContent: new_file_contents,
       tabName: tab_name,
     });
+    // Safety net: if the renderer abandons this diff (tab superseded, never acted
+    // on, window gone), resolve after a timeout so the CLI's tools/call never blocks
+    // forever. Cleared by settlePending when the diff resolves normally.
+    const pending = entry.pendingDiffs.get(diffId);
+    if (pending) pending.timeout = setTimeout(() => settlePending(entry, diffId, { action: 'reject' }), DIFF_TIMEOUT_MS);
+  } else {
+    // Renderer unreachable — don't leave the CLI blocked.
+    settlePending(entry, diffId, { action: 'reject' });
   }
 
-  // Await user action
+  // Await user action (or one of the safety paths above)
   const result = await diffPromise;
 
   // Send JSON-RPC response back to Claude CLI
@@ -263,8 +275,7 @@ async function handleCloseTab(entry, rpcId, args, log) {
   // Find the pending diff by tab_name
   for (const [diffId, pending] of entry.pendingDiffs) {
     if (pending.tabName === tab_name) {
-      entry.pendingDiffs.delete(diffId);
-      pending.resolve({ action: 'accept' });
+      settlePending(entry, diffId, { action: 'accept' });
 
       // Notify renderer to close the tab
       if (entry.mainWindow && !entry.mainWindow.isDestroyed()) {
@@ -283,7 +294,8 @@ async function handleCloseAllDiffTabs(entry, rpcId, log) {
   log.debug(`[mcp] session=${entry.sessionId} closeAllDiffTabs`);
 
   // Resolve all pending diffs as TAB_CLOSED
-  for (const [diffId, pending] of entry.pendingDiffs) {
+  for (const [, pending] of entry.pendingDiffs) {
+    if (pending.timeout) clearTimeout(pending.timeout);
     pending.resolve({ action: 'accept' });
   }
   entry.pendingDiffs.clear();
@@ -397,6 +409,7 @@ function shutdownMcpServer(sessionId) {
 
   // Resolve all pending diffs
   for (const [, pending] of entry.pendingDiffs) {
+    if (pending.timeout) clearTimeout(pending.timeout);
     pending.resolve({ action: 'accept' });
   }
   entry.pendingDiffs.clear();
@@ -429,15 +442,20 @@ function shutdownAll() {
  * @param {string} action - 'accept' | 'accept-edited' | 'reject'
  * @param {string|null} editedContent - modified content (for accept-edited)
  */
+// Resolve a pending diff and clear its safety timeout. Idempotent: a no-op if the
+// diff was already settled (so a late renderer response after a timeout is harmless).
+function settlePending(entry, diffId, result) {
+  const pending = entry.pendingDiffs.get(diffId);
+  if (!pending) return;
+  if (pending.timeout) clearTimeout(pending.timeout);
+  entry.pendingDiffs.delete(diffId);
+  pending.resolve(result);
+}
+
 function resolvePendingDiff(sessionId, diffId, action, editedContent) {
   const entry = servers.get(sessionId);
   if (!entry) return;
-
-  const pending = entry.pendingDiffs.get(diffId);
-  if (!pending) return;
-
-  entry.pendingDiffs.delete(diffId);
-  pending.resolve({ action, content: editedContent });
+  settlePending(entry, diffId, { action, content: editedContent });
 }
 
 /**

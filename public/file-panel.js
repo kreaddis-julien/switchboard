@@ -253,8 +253,8 @@ function rekeyFilePanelState(oldId, newId) {
 function openDiffTab(sessionId, diffId, data) {
   const state = getSessionState(sessionId);
 
-  // Destroy previous
-  destroyCurrentTab(state);
+  // Destroy previous (resolves it if a diff was still pending)
+  destroyCurrentTab(state, sessionId);
 
   state.currentTab = {
     type: 'diff',
@@ -278,8 +278,8 @@ function openDiffTab(sessionId, diffId, data) {
 function openFileTab(sessionId, data) {
   const state = getSessionState(sessionId);
 
-  // Destroy previous
-  destroyCurrentTab(state);
+  // Destroy previous (resolves it if a diff was still pending)
+  destroyCurrentTab(state, sessionId);
 
   state.currentTab = {
     type: 'file',
@@ -296,9 +296,18 @@ function openFileTab(sessionId, data) {
   }
 }
 
-function destroyCurrentTab(state) {
+function destroyCurrentTab(state, sessionId) {
   const tab = state.currentTab;
   if (!tab) return;
+  // If a diff tab is discarded (superseded by a new diff/file opened while it was
+  // still pending, or the panel cleared) without the user acting on it, resolve its
+  // pending MCP request so the CLI's tools/call(openDiff) never hangs forever.
+  // Mirrors handleClose's 'reject'. CLI-initiated closes already set resolved=true
+  // or cleared the diff main-side, so this is a no-op for them.
+  if (tab.type === 'diff' && tab.diffId && !tab.resolved) {
+    tab.resolved = true;
+    window.api.mcpDiffResponse(sessionId, tab.diffId, 'reject', null);
+  }
   if (tab.type === 'diff' && tab.editorView) {
     tab.editorView.destroy();
     tab.editorView = null;
@@ -324,7 +333,7 @@ function closeAllDiffs(sessionId) {
   if (!state) return;
 
   if (state.currentTab?.type === 'diff') {
-    destroyCurrentTab(state);
+    destroyCurrentTab(state, sessionId);
     state.currentTab = null;
     state.panelVisible = false;
     if (currentPanelSessionId === sessionId) hidePanel();
@@ -337,7 +346,7 @@ function closeDiffByDiffId(sessionId, diffId) {
   if (state.currentTab.type !== 'diff' || state.currentTab.diffId !== diffId) return;
 
   state.currentTab.resolved = true;
-  destroyCurrentTab(state);
+  destroyCurrentTab(state, sessionId);
   state.currentTab = null;
   state.panelVisible = false;
   if (currentPanelSessionId === sessionId) hidePanel();
