@@ -1148,8 +1148,7 @@ body { display: flex; flex-direction: column; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* Au survol, l'heure s'efface pour laisser place au bouton "..." a droite. */
-.session-item:hover .session-meta { display: none; }
+/* L'heure reste visible au survol (le bouton "..." apparait a sa droite). */
 
 /* ===== Brand header sidebar (mark orange + Switchboard) ===== */
 #sb-brand { display: flex; align-items: center; gap: 9px; padding: 13px 14px 9px; }
@@ -1216,11 +1215,25 @@ body { display: flex; flex-direction: column; }
 }
 .th-chip svg { width: 11px; height: 11px; color: var(--c-808098); }
 
-/* ===== Hierarchie sidebar (fidele au mock) : groupes aeres, sessions flush dot-led ===== */
-/* Pas de rail ni d'indentation : la hierarchie vient de l'en-tete majuscule + de l'air. */
-.project-group + .project-group { margin-top: 14px; }
+/* ===== Sidebar : pas de marque, projets differencies, filtres alignes a droite ===== */
+/* Le nom de l'app en haut a gauche est redondant -> masque. */
+#sb-brand { display: none; }
+
+/* Differenciation entre projets : divider + air entre chaque groupe. */
+.project-group + .project-group {
+  margin-top: 16px;
+  border-top: 1px solid rgb(var(--on) / 0.07);
+  padding-top: 14px;
+}
+/* En-tete projet = label de section (chevron accent), un peu plus present. */
 .project-header { padding: 6px 12px; }
-.project-header .arrow { color: var(--accent); opacity: 0.9; }
+.project-header .arrow { color: var(--c-808098); opacity: 0.9; }
+.project-header .project-name { color: var(--c-d0d0e8); }
+
+/* Rangee de filtres : grid/running a gauche, popover + repli alignes A DROITE.
+   Bug corrige : il y avait DEUX margin-left:auto (magic-wrap + collapse) -> le repli
+   se retrouvait au centre. On neutralise celle du collapse et on l'ordonne en dernier. */
+#sidebar-collapse-btn { margin-left: 0 !important; order: 3; }
 
 /* ---- Session action buttons ---- */
 /* "..." trigger on the session row (revealed on hover) */
