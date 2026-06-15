@@ -996,6 +996,13 @@ async function showTerminalHeader(session) {
   // Chips meta (modele, branche git, contexte) parses du .jsonl — conteneur vide+rempli.
   let meta = document.getElementById('terminal-header-meta');
   if (!meta) { meta = document.createElement('span'); meta.id = 'terminal-header-meta'; terminalHeaderId.insertAdjacentElement('afterend', meta); }
+  // Indicateurs d'etat (Running / IDE Emulation) = des INFOS, pas des boutons :
+  // on les place dans la rangee de tags a gauche (ils gardent leurs couleurs).
+  const thInfo = terminalHeaderId.parentElement;
+  const statusEl = document.getElementById('terminal-header-status');
+  if (statusEl && thInfo && statusEl.parentElement !== thInfo) thInfo.insertBefore(statusEl, thInfo.firstChild);
+  const mcpEl = document.querySelector('.mcp-toggle');
+  if (mcpEl && thInfo && mcpEl.parentElement !== thInfo) thInfo.insertBefore(mcpEl, statusEl ? statusEl.nextSibling : thInfo.firstChild);
   meta.dataset.sid = session.sessionId;
   meta.innerHTML = '';
   window.api.getSessionMeta(session.sessionId).then(m => {

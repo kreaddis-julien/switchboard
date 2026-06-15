@@ -1671,8 +1671,12 @@ body { display: flex; flex-direction: column; }
   font-weight: 500;
   height: 22px;
   padding: 0 9px 0 8px;
-  border-radius: 999px;
+  border-radius: 6px;
 }
+
+/* Breadcrumb projet/session retire : redondant avec la sidebar. */
+#terminal-header-name,
+#terminal-header-pty-title { display: none; }
 
 #terminal-header-status::before {
   content: '';
@@ -4314,13 +4318,13 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
 .mcp-toggle {
   font-size: 10.5px;
   color: var(--c-9090a8);
-  margin-right: 8px;
+  margin-right: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 22px;
-  padding: 0 10px;
-  border-radius: 999px;
+  padding: 0 9px;
+  border-radius: 6px;
   background: rgb(var(--on) / 0.05);
   border: 1px solid rgb(var(--on) / 0.08);
 }
