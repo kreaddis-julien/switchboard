@@ -585,6 +585,9 @@ addProjectBtn.addEventListener('click', () => {
 });
 
 // --- Search (debounced, per-tab FTS) ---
+// Trigram tokenizer makes 1-2 char queries the most expensive (they match
+// enormous row sets). Treat any query shorter than this as "no filter".
+const MIN_SEARCH_CHARS = 3;
 let searchDebounceTimer = null;
 const searchClear = document.getElementById('search-clear');
 const searchTitlesToggle = document.getElementById('search-titles-toggle');
@@ -625,6 +628,21 @@ function clearSearch() {
   }
 }
 
+// Reset the search filter state WITHOUT clearing the input text. Used when the
+// query drops below MIN_SEARCH_CHARS while the user is still typing — we want no
+// filter applied, but must not wipe the partially-typed text.
+function resetSearchFilter() {
+  if (activeTab === 'sessions') {
+    searchMatchIds = null;
+    searchMatchProjectPaths = null;
+    refreshSidebar({ resort: true });
+  } else if (activeTab === 'plans') {
+    renderPlans(cachedPlans);
+  } else if (activeTab === 'memory') {
+    renderMemories();
+  }
+}
+
 searchClear.addEventListener('click', () => {
   clearSearch();
   searchInput.focus();
@@ -641,6 +659,14 @@ searchInput.addEventListener('input', () => {
 
     if (!query) {
       clearSearch();
+      return;
+    }
+
+    // 1-2 char queries are the most expensive for the trigram tokenizer (they
+    // match enormous row sets). Treat them as "no filter" — show the full list
+    // without wiping the partially-typed text (resetSearchFilter, not clearSearch).
+    if (query.length < MIN_SEARCH_CHARS) {
+      resetSearchFilter();
       return;
     }
 
@@ -735,28 +761,47 @@ async function pollActiveSessions() {
   scheduleActiveSessionsPoll();
 }
 
+// Signature of the pty-id set from the last updateRunningIndicators() call.
+// Used to skip the two full querySelectorAll sidebar scans when nothing changed.
+// A sorted join is a cheap signature for the small counts expected (<20 active
+// sessions). The gridCards loop runs every call regardless because
+// sessionBusyState can change between polls without the pty-set changing.
+let _lastPtySignature = '';
+
 function updateRunningIndicators() {
-  document.querySelectorAll('.session-item').forEach(item => {
-    const id = item.dataset.sessionId;
-    const running = activePtyIds.has(id);
-    item.classList.toggle('has-running-pty', running);
-    if (!running) {
-      item.classList.remove('needs-attention', 'response-ready', 'cli-busy');
-      attentionSessions.delete(id);
-      responseReadySessions.delete(id);
-      sessionBusyState.delete(id);
-      updateAttentionBadge();
-    }
-    const dot = item.querySelector('.session-status-dot');
-    if (dot) dot.classList.toggle('running', running);
-  });
-  // Update slug group running dots
-  document.querySelectorAll('.slug-group').forEach(group => {
-    const hasRunning = group.querySelector('.session-item.has-running-pty') !== null;
-    const dot = group.querySelector('.slug-group-dot');
-    if (dot) dot.classList.toggle('running', hasRunning);
-  });
-  // Update grid card dots and status text
+  // Build a cheap signature for the current running set.
+  const sig = Array.from(activePtyIds).sort().join(',');
+  const ptySetChanged = sig !== _lastPtySignature;
+  _lastPtySignature = sig;
+
+  if (ptySetChanged) {
+    // Full sidebar DOM scan: only when the set of running sessions changed.
+    // Each call hits every .session-item and every .slug-group, which can be
+    // expensive on large projects; skip when nothing moved.
+    document.querySelectorAll('.session-item').forEach(item => {
+      const id = item.dataset.sessionId;
+      const running = activePtyIds.has(id);
+      item.classList.toggle('has-running-pty', running);
+      if (!running) {
+        item.classList.remove('needs-attention', 'response-ready', 'cli-busy');
+        attentionSessions.delete(id);
+        responseReadySessions.delete(id);
+        sessionBusyState.delete(id);
+        updateAttentionBadge();
+      }
+      const dot = item.querySelector('.session-status-dot');
+      if (dot) dot.classList.toggle('running', running);
+    });
+    // Update slug group running dots
+    document.querySelectorAll('.slug-group').forEach(group => {
+      const hasRunning = group.querySelector('.session-item.has-running-pty') !== null;
+      const dot = group.querySelector('.slug-group-dot');
+      if (dot) dot.classList.toggle('running', hasRunning);
+    });
+  }
+
+  // Update grid card dots and status text — always run because sessionBusyState
+  // (CLI-busy indicator) can change without affecting activePtyIds.
   for (const [sid, card] of gridCards) {
     const running = activePtyIds.has(sid);
     const busy = sessionBusyState.get(sid) || false;
@@ -1406,10 +1451,13 @@ window.api.onProjectsChanged(() => {
     projectsChangedWhileAway = true;
     return;
   }
+  // 900ms debounce: 300ms was visibly flickering while live JSONLs trigger
+  // watcher flushes every ~500ms; with the main-side notify throttle (1.5s) too
+  // the sidebar redraws at most ~1x/sec.
   projectsChangedTimer = setTimeout(() => {
     projectsChangedTimer = null;
     loadProjects();
-  }, 300);
+  }, 900);
 });
 
 // Status bar

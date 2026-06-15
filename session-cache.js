@@ -283,7 +283,7 @@ function refreshFolder(folder, opts = {}) {
  * landing inside the window is still caught by the live fs watcher.
  * (ported from JeanBaptisteRenard/switchboard #38)
  */
-const RECONCILE_THROTTLE_MS = 1000;
+const RECONCILE_THROTTLE_MS = 5000;
 let lastReconcileAt = 0;
 function reconcileCacheFromFilesystem() {
   const now = Date.now();
@@ -435,11 +435,27 @@ function buildProjectsFromCache(showArchived) {
 }
 
 
+// Throttle projects-changed IPC: live sessions appending JSONL trigger a flush
+// every ~500ms; without throttling the renderer re-runs getProjects + morphdom
+// over 100+ items at that cadence, producing visible flicker. Leading-edge fire
+// + trailing flush so the first change is instant but subsequent bursts coalesce.
+const NOTIFY_THROTTLE_MS = 1500;
+let _notifyCooldown = false;
+let _notifyPending = false;
 function notifyRendererProjectsChanged() {
+  if (_notifyCooldown) { _notifyPending = true; return; }
   const mainWindow = getMainWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('projects-changed');
   }
+  _notifyCooldown = true;
+  setTimeout(() => {
+    _notifyCooldown = false;
+    if (_notifyPending) {
+      _notifyPending = false;
+      notifyRendererProjectsChanged();
+    }
+  }, NOTIFY_THROTTLE_MS);
 }
 
 function sendStatus(text, type) {
