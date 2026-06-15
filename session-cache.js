@@ -349,6 +349,14 @@ function buildProjectsFromCache(showArchived) {
       name: meta?.name || null,
       starred: meta?.starred || 0,
       archived: meta?.archived || 0,
+      // Session-health insight inputs (session-health.js): exposed to the
+      // renderer so the sidebar can flag marathon-risk / handoff-recommended.
+      cacheReadTokens: row.cacheReadTokens || 0,
+      userMessageCount: row.userMessageCount || 0,
+      largestUserPromptWords: row.largestUserPromptWords || 0,
+      activeMinutes: row.activeMinutes || 0,
+      startedAt: row.startedAt || null,
+      lastEntryAt: row.lastEntryAt || null,
     };
     if (!showArchived && s.archived) continue;
     if (!projectMap.has(effPath)) {

@@ -72,6 +72,11 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
     // message.usage; tool calls / subagent (Task) invocations from tool_use blocks.
     let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
     let toolCalls = 0, subagentInvocations = 0, model = null;
+    // Session-shape metrics for the health/handoff insight (session-health.js):
+    // count of user turns, the largest single user prompt (word count), and the
+    // first/last entry timestamps to derive the active span.
+    let userMessageCount = 0, largestUserPromptWords = 0;
+    let startedAt = null, lastEntryAt = null;
     for (const line of lines) {
       // Per-line try/catch: a JSONL file being written concurrently by a live
       // Claude CLI session can have its tail captured mid-write — one truncated
@@ -79,6 +84,14 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
       // keep parsing.
       let entry;
       try { entry = JSON.parse(line); } catch { continue; }
+      if (entry.timestamp) {
+        const ts = new Date(entry.timestamp);
+        if (!Number.isNaN(ts.getTime())) {
+          const iso = ts.toISOString();
+          if (!startedAt || ts < new Date(startedAt)) startedAt = iso;
+          if (!lastEntryAt || ts > new Date(lastEntryAt)) lastEntryAt = iso;
+        }
+      }
       if (entry.slug && !slug) slug = entry.slug;
       if (entry.agentId && !agentId) agentId = entry.agentId;
       if (entry.isSidechain) sidechainSeen = true;
@@ -111,6 +124,11 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
         for (const b of msg.content) {
           if (b && b.type === 'tool_use') { toolCalls++; if (b.name === 'Task') subagentInvocations++; }
         }
+      }
+      if (entry.type === 'user' || (entry.type === 'message' && entry.role === 'user')) {
+        userMessageCount++;
+        const words = String(text || '').trim().match(/\S+/g);
+        largestUserPromptWords = Math.max(largestUserPromptWords, words ? words.length : 0);
       }
       if (!summary && (entry.type === 'user' || (entry.type === 'message' && entry.role === 'user'))) {
         // Skip local command messages (! prefix) — use the next real user message
@@ -154,6 +172,11 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
 
     if (!summary || messageCount < 1) return null;
 
+    // Active span in minutes between the first and last timestamped entry.
+    const activeMinutes = startedAt && lastEntryAt
+      ? Math.max(0, Math.round((new Date(lastEntryAt) - new Date(startedAt)) / 60000))
+      : 0;
+
     if (isSubagent) {
       // Sidechain marker must be present — otherwise the file lives under a
       // subagents/ directory but isn't actually a subagent transcript. Bail.
@@ -176,6 +199,7 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
         modified: stat.mtime.toISOString(),
         messageCount, textContent, slug, customTitle, aiTitle,
       inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model,
+        userMessageCount, largestUserPromptWords, startedAt, lastEntryAt, activeMinutes,
         parentSessionId: opts.parentSessionId,
         agentId,
         subagentType,
@@ -190,6 +214,7 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
       modified: stat.mtime.toISOString(),
       messageCount, textContent, slug, customTitle, aiTitle,
       inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model,
+      userMessageCount, largestUserPromptWords, startedAt, lastEntryAt, activeMinutes,
     };
   } catch {
     return null;

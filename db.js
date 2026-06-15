@@ -175,6 +175,21 @@ const migrations = [
     try { db.exec('VACUUM'); } catch {}
     searchFtsRecreated = true;
   },
+  // v8: Session-shape metrics for the health/handoff insight (session-health.js):
+  // user-turn count, largest single user prompt (words), active span (minutes),
+  // and first/last entry timestamps. Add only MISSING columns (PRAGMA-checked, as
+  // in v5) so a real ALTER failure aborts before db_version bumps. The cache is
+  // re-indexed on this boot anyway (v7 set searchFtsRecreated -> full repopulate),
+  // which backfills these columns from the JSONL.
+  (db) => {
+    const existing = new Set(db.prepare('PRAGMA table_info(session_cache)').all().map((c) => c.name));
+    const add = (col, type) => { if (!existing.has(col)) db.exec(`ALTER TABLE session_cache ADD COLUMN ${col} ${type}`); };
+    add('userMessageCount', 'INTEGER DEFAULT 0');
+    add('largestUserPromptWords', 'INTEGER DEFAULT 0');
+    add('activeMinutes', 'INTEGER DEFAULT 0');
+    add('startedAt', 'TEXT');
+    add('lastEntryAt', 'TEXT');
+  },
 ];
 
 const currentDbVersion = (() => {
@@ -252,8 +267,8 @@ const stmts = {
   cacheCount: db.prepare('SELECT COUNT(*) as cnt FROM session_cache'),
   cacheGetAll: db.prepare('SELECT * FROM session_cache'),
   cacheUpsert: db.prepare(`
-    INSERT INTO session_cache (sessionId, folder, projectPath, summary, firstPrompt, created, modified, messageCount, slug, aiTitle, parentSessionId, agentId, subagentType, description, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO session_cache (sessionId, folder, projectPath, summary, firstPrompt, created, modified, messageCount, slug, aiTitle, parentSessionId, agentId, subagentType, description, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, toolCalls, subagentInvocations, model, userMessageCount, largestUserPromptWords, activeMinutes, startedAt, lastEntryAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(sessionId) DO UPDATE SET
       folder = excluded.folder, projectPath = excluded.projectPath,
       summary = excluded.summary, firstPrompt = excluded.firstPrompt,
@@ -265,7 +280,9 @@ const stmts = {
       inputTokens = excluded.inputTokens, outputTokens = excluded.outputTokens,
       cacheReadTokens = excluded.cacheReadTokens, cacheCreationTokens = excluded.cacheCreationTokens,
       toolCalls = excluded.toolCalls, subagentInvocations = excluded.subagentInvocations,
-      model = excluded.model
+      model = excluded.model,
+      userMessageCount = excluded.userMessageCount, largestUserPromptWords = excluded.largestUserPromptWords,
+      activeMinutes = excluded.activeMinutes, startedAt = excluded.startedAt, lastEntryAt = excluded.lastEntryAt
   `),
   cacheGetByParent: db.prepare('SELECT * FROM session_cache WHERE parentSessionId = ? ORDER BY created ASC'),
   cacheGetByFolder: db.prepare('SELECT * FROM session_cache WHERE folder = ?'),
@@ -378,7 +395,9 @@ const upsertCachedSessionsBatch = db.transaction((sessions) => {
       s.subagentType || null, s.description || null,
       s.inputTokens || 0, s.outputTokens || 0, s.cacheReadTokens || 0,
       s.cacheCreationTokens || 0, s.toolCalls || 0, s.subagentInvocations || 0,
-      s.model || null
+      s.model || null,
+      s.userMessageCount || 0, s.largestUserPromptWords || 0, s.activeMinutes || 0,
+      s.startedAt || null, s.lastEntryAt || null
     );
   }
 });
