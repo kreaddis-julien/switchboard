@@ -247,3 +247,50 @@ test('refreshFolder: new session produces a searchEntriesToUpsert entry with non
     cleanup(projectsDir);
   }
 });
+
+test('refreshFolder header-only merge: existing cached file preserves body fields, refreshes display (ba1d55a)', () => {
+  const projectsDir = mkTmp();
+  try {
+    const folder = 'merge-proj';
+    const folderPath = path.join(projectsDir, folder);
+    const projectPath = projectsDir;
+
+    // File on disk with a fresh first-user-message; its mtime is "now".
+    const file = path.join(folderPath, 'sess-merge.jsonl');
+    writeSession(file, projectPath);
+    const freshMtime = fs.statSync(file).mtime.toISOString();
+
+    // Cached row: OLD mtime (so it counts as "modified"), with heavy body fields
+    // that the header-only read must NOT recompute/lose.
+    const cachedRows = [{
+      sessionId: 'sess-merge', folder, projectPath,
+      summary: 'STALE SUMMARY', firstPrompt: 'STALE',
+      created: '2020-01-01T00:00:00.000Z',
+      modified: '2020-01-01T00:00:00.000Z',
+      messageCount: 4242, slug: 'old-slug', aiTitle: null,
+      parentSessionId: null, agentId: null, subagentType: null, description: null,
+      inputTokens: 999, outputTokens: 888, model: 'claude-opus-4-8',
+    }];
+
+    const { db, upserted } = makeFakeDb({ cachedRows });
+    sessionCache.init({
+      PROJECTS_DIR: projectsDir, activeSessions: new Map(),
+      getMainWindow: () => null, log: console, db,
+    });
+
+    sessionCache.refreshFolder(folder);
+
+    const row = upserted.find(s => s.sessionId === 'sess-merge');
+    assert.ok(row, 'the modified cached session must be upserted via header merge');
+    // Preserved from cache (header-only read does not recompute these):
+    assert.equal(row.messageCount, 4242, 'messageCount must be preserved from cache');
+    assert.equal(row.created, '2020-01-01T00:00:00.000Z', 'created must be preserved from cache');
+    assert.equal(row.inputTokens, 999, 'inputTokens must be preserved from cache');
+    assert.equal(row.model, 'claude-opus-4-8', 'model must be preserved from cache');
+    // Refreshed from the header read:
+    assert.equal(row.modified, freshMtime, 'modified must be bumped to the file mtime');
+    assert.ok(row.summary && row.summary !== 'STALE SUMMARY', 'summary must be refreshed from the header');
+  } finally {
+    cleanup(projectsDir);
+  }
+});
