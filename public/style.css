@@ -1684,23 +1684,30 @@ body { display: flex; flex-direction: column; }
   background: var(--c-6a6a80);
 }
 
+/* Bouton Stop = bouton danger libelle (facon mock) : icone + "Stop". */
 #terminal-stop-btn {
   cursor: pointer;
-  background: none;
-  border: none;
-  padding: 4px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
   line-height: 1;
   color: var(--err);
-  border-radius: 5px;
-  display: flex;
+  background: rgb(var(--err-rgb) / 0.1);
+  border: 1px solid rgb(var(--err-rgb) / 0.28);
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
 }
+#terminal-stop-btn::after { content: "Stop"; }
 
 #terminal-stop-btn:hover {
   color: var(--err);
-  background: rgb(var(--err-rgb) / 0.1);
+  background: rgb(var(--err-rgb) / 0.18);
+  border-color: rgb(var(--err-rgb) / 0.4);
 }
 
 #terminals {
@@ -4284,10 +4291,19 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
 }
 
 /* MCP toggle in terminal header */
+/* "IDE Emulation" = chip discret (coherent avec les chips du header). */
 .mcp-toggle {
-  font-size: 10px;
-  color: var(--c-7a7a90);
+  font-size: 10.5px;
+  color: var(--c-9090a8);
   margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgb(var(--on) / 0.05);
+  border: 1px solid rgb(var(--on) / 0.08);
 }
 
 .mcp-toggle.enabled {
