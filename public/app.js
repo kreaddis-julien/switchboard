@@ -989,7 +989,7 @@ async function showTerminalHeader(session) {
   // Breadcrumb projet / session (prefixe attenue facon mock)
   const projLeaf = (session.projectPath || '').split('/').filter(Boolean).slice(-1)[0] || '';
   terminalHeaderName.innerHTML = (projLeaf ? `<span class="th-proj">${escapeHtml(projLeaf)}</span><span class="th-sep">/</span>` : '') + escapeHtml(displayName);
-  terminalHeaderId.textContent = (session.sessionId || '').slice(0, 8);
+  terminalHeaderId.textContent = session.sessionId || '';
   terminalHeader.style.display = '';
   updateTerminalHeader();
 
@@ -1010,7 +1010,7 @@ async function showTerminalHeader(session) {
     if (meta.dataset.sid !== session.sessionId || !m || m.error) return;
     meta.innerHTML = '';
     if (m.model) meta.insertAdjacentHTML('beforeend', `<span class="th-chip">${escapeHtml(prettyModel(m.model))}</span>`);
-    if (m.gitBranch) meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-branch"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M18 6a3 3 0 0 1-3 3H9"/></svg>${escapeHtml(m.gitBranch)}</span>`);
+    if (m.gitBranch && m.gitBranch !== 'HEAD') meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-branch"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M18 6a3 3 0 0 1-3 3H9"/></svg>${escapeHtml(m.gitBranch)}</span>`);
     if (m.ctxTokens) meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-ctx">${fmtTokens(m.ctxTokens)} ctx</span>`);
   }).catch(() => {});
 
