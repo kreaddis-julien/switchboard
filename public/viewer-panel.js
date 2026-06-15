@@ -12,8 +12,29 @@
  *   - Close: shown if onClose is provided
  *   - Copy path/content: shown if opted in
  *
- * Depends on: viewer-toolbar.js, codemirror-bundle.js
+ * Depends on: viewer-toolbar.js
+ * codemirror-bundle.js is loaded on demand (lazy) via loadCodeMirrorBundle().
  */
+
+// ── Lazy CodeMirror loader ───────────────────────────────────────────────────
+// Returns a Promise that resolves once codemirror-bundle.js (1.66 MB) has been
+// injected and its globals (CMEditorView, createPlanEditor, createMergeViewer …)
+// are available on window. The Promise is cached after the first call — the
+// <script> is injected exactly once regardless of how many callers race. Pulling
+// this out of the eager <script> list in index.html cuts cold-start parse time.
+let _cmBundlePromise = null;
+function loadCodeMirrorBundle() {
+  if (_cmBundlePromise) return _cmBundlePromise;
+  _cmBundlePromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'codemirror-bundle.js';
+    script.onload = () => resolve();
+    script.onerror = (err) => { _cmBundlePromise = null; reject(err); };
+    document.head.appendChild(script);
+  });
+  return _cmBundlePromise;
+}
+window.loadCodeMirrorBundle = loadCodeMirrorBundle;
 
 class ViewerPanel {
   /**
@@ -152,33 +173,44 @@ class ViewerPanel {
       this.previewMode = false;
     }
 
-    // Create or update editor
-    if (!this.editorView) {
-      this._createEditor(content, filePath);
-    } else {
-      this.editorView.dispatch({
-        changes: { from: 0, to: this.editorView.state.doc.length, insert: content },
-      });
-    }
-
-    // Set wrap default based on file type
-    this.wrapMode = isMd;
-    this.toolbar.setWrapMode(this.wrapMode);
-    if (this.editorView && this.editorView._wrapCompartment) {
-      this.editorView.dispatch({
-        effects: this.editorView._wrapCompartment.reconfigure(
-          this.wrapMode ? window.CMEditorView.lineWrapping : []
-        ),
-      });
-    }
-
-    // Re-apply preview preference
-    if (wantPreview) {
-      this._setPreview(true);
-    }
-
-    // Watch for external changes
+    // Watch for external changes (sync — does not need CodeMirror).
     this._watchFile(filePath);
+
+    // Defer all CodeMirror-dependent work until the bundle is loaded. A
+    // monotonic generation token lets a stale open() (superseded before the
+    // bundle resolved) bail out so the latest content/filePath wins.
+    this._openGen = (this._openGen || 0) + 1;
+    const myGen = this._openGen;
+    loadCodeMirrorBundle().then(() => {
+      if (myGen !== this._openGen) return; // a newer open() superseded this one
+
+      // Create or update editor
+      if (!this.editorView) {
+        this._createEditor(content, filePath);
+      } else {
+        this.editorView.dispatch({
+          changes: { from: 0, to: this.editorView.state.doc.length, insert: content },
+        });
+      }
+
+      // Set wrap default based on file type
+      this.wrapMode = isMd;
+      this.toolbar.setWrapMode(this.wrapMode);
+      if (this.editorView && this.editorView._wrapCompartment) {
+        this.editorView.dispatch({
+          effects: this.editorView._wrapCompartment.reconfigure(
+            this.wrapMode ? window.CMEditorView.lineWrapping : []
+          ),
+        });
+      }
+
+      // Re-apply preview preference
+      if (wantPreview) {
+        this._setPreview(true);
+      }
+    }).catch((err) => {
+      console.error('[viewer-panel] Failed to load codemirror-bundle:', err);
+    });
   }
 
   _createEditor(content, filePath) {
