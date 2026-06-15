@@ -81,14 +81,11 @@ test('orch:create-run scaffolds, installs the agent pack and spawns the master',
     const [sessionId, cwd, isNew, opts] = calls.openTerminal[0];
     assert.equal(sessionId, res.masterSessionId);
     assert.equal(cwd, project);
-    assert.equal(isNew, false); // seeded JSONL → resume
+    assert.equal(isNew, true); // fresh spawn (claude --session-id), not seed+resume
     assert.equal(opts.profileId, 'anthropic');
     assert.match(opts.initialPrompt, new RegExp(`^/sb-plan ${res.run.id} test goal`));
-
-    // seeded master transcript exists with slug = run id (sidebar grouping)
-    const folder = fs.readdirSync(projectsDir)[0];
-    const jsonl = fs.readFileSync(path.join(projectsDir, folder, res.masterSessionId + '.jsonl'), 'utf8');
-    assert.match(jsonl, new RegExp(`"slug":"${res.run.id}"`));
+    // No synthetic seed: the boot prompt (/sb-plan) is delivered as claude's
+    // positional [prompt] arg, so a fresh interactive session starts planning.
 
     // run.json records masterSessionId
     assert.equal(proto.readRun(project, res.run.id).masterSessionId, res.masterSessionId);

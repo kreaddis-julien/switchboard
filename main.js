@@ -1537,6 +1537,14 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
         }
       }
 
+      // Initial user prompt (Agent Teams kickoff, e.g. "/sb-plan <run> <goal>").
+      // Passed as claude's positional [prompt] arg so a FRESH interactive session
+      // starts working on it immediately — no seed+resume needed. Must be LAST
+      // (after --ide) and shell-escaped via quoteArgvForShell.
+      if (sessionOptions?.initialPrompt) {
+        claudeCmd += ' ' + quoteArgvForShell(shell, [String(sessionOptions.initialPrompt)]);
+      }
+
       const ptyEnv = {
         ...cleanPtyEnv,
         TERM: 'xterm-256color', COLORTERM: 'truecolor',

@@ -68,12 +68,12 @@ test('ready leaf task gets a worker session and moves to in_progress', async () 
     assert.equal(calls.openTerminal.length, 1);
     const call = calls.openTerminal[0];
     assert.equal(call.cwd, project); // isolation none
-    assert.equal(call.isNew, false); // seeded jsonl → resume
+    assert.equal(call.isNew, true); // fresh spawn (claude --session-id), not seed+resume
     assert.equal(call.opts.profileId, 'deepseek');
     assert.equal(call.opts.permissionMode, 'acceptEdits');
     assert.equal(call.opts.initialPrompt, `/sb-work ${run.id} T-1`);
     assert.match(call.opts.appendSystemPrompt, /worker/);
-    assert.equal(calls.seeds[0].slug, run.id);
+    assert.equal(calls.seeds.length, 0); // no synthetic seed — boot prompt is the positional arg
 
     const task = proto.readTask(project, run.id, 'T-1');
     assert.equal(task.status, 'in_progress');

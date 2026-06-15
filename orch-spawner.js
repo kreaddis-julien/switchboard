@@ -605,13 +605,10 @@ class OrchSpawner {
   }
 
   async _spawnSession(projectPath, run, task, role, cwd, initialPrompt, sessionId, extraSystemPrompt) {
-    const seeded = this.deps.seedSessionJsonl({
-      sessionId,
-      cwd,
-      slug: run.id,
-      text: `**Agent Teams ${role}** — run \`${run.id}\`, task \`${task.id}\`: ${task.title}`,
-    });
-    const res = await this.deps.openTerminal(sessionId, cwd, !seeded,
+    // Spawn FRESH (isNew=true -> claude --session-id), not seed+resume: resuming
+    // a synthetic JSONL fails interactively. The task prompt is delivered as
+    // claude's positional [prompt] arg so the worker starts working immediately.
+    const res = await this.deps.openTerminal(sessionId, cwd, true,
       this._sessionOptions(projectPath, run, task, role, cwd, initialPrompt, extraSystemPrompt));
     if (!res || !res.ok) {
       return { ok: false, error: (res && res.error) || 'openTerminal failed' };

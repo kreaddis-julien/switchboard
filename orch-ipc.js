@@ -202,15 +202,16 @@ function init(log, deps) {
     }
 
     // Spawn the master session — the only interactive role.
+    // FRESH (isNew=true -> claude --session-id), not seed+resume: resuming a
+    // synthetic JSONL fails interactively (exit 1). The boot prompt is delivered
+    // as claude's positional [prompt] arg (openTerminalImpl), so a fresh session
+    // starts /sb-plan immediately.
     const masterSessionId = crypto.randomUUID();
-    const seeded = seedSessionJsonl({
-      sessionId: masterSessionId, cwd: resolved, slug: run.id, text: tpl.masterWelcome(run),
-    });
     run.masterSessionId = masterSessionId;
     proto.writeRun(resolved, run);
 
     const masterCfg = run.roles.master || {};
-    const res = await deps.openTerminal(masterSessionId, resolved, !seeded, {
+    const res = await deps.openTerminal(masterSessionId, resolved, true, {
       profileId: masterCfg.profileId || undefined,
       permissionMode: masterCfg.permissionMode || 'acceptEdits',
       initialPrompt: tpl.masterBootPrompt(run),
