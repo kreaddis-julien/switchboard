@@ -65,12 +65,17 @@ function cronMatches(cronExpr, now) {
   const parts = cronExpr.trim().split(/\s+/);
   if (parts.length !== 5) return false;
   const [minute, hour, dom, month, dow] = parts;
+  const domMatch = cronFieldMatches(dom, now.getDate());
+  const dowMatch = cronFieldMatches(dow, now.getDay());
+  // POSIX cron: when BOTH day-of-month and day-of-week are restricted, the entry
+  // fires if EITHER matches (OR). If one is '*', they are AND-combined (which, with
+  // the '*' side always true, collapses to the restricted side).
+  const dayMatch = (dom === '*' || dow === '*') ? (domMatch && dowMatch) : (domMatch || dowMatch);
   return (
     cronFieldMatches(minute, now.getMinutes()) &&
     cronFieldMatches(hour, now.getHours()) &&
-    cronFieldMatches(dom, now.getDate()) &&
     cronFieldMatches(month, now.getMonth() + 1) &&
-    cronFieldMatches(dow, now.getDay())
+    dayMatch
   );
 }
 
@@ -142,7 +147,9 @@ function scanSchedules(log) {
             const content = fs.readFileSync(path.join(commandsDir, file), 'utf8');
             const { meta, body } = parseFrontmatter(content);
             if (!meta.cron || !body) continue;
-            if (meta.enabled === 'false') continue;
+            // Frontmatter values are raw strings; treat any common falsy spelling as
+            // disabled (not just the exact 'false') so a hand-edited `enabled: no` works.
+            if (meta.enabled !== undefined && ['false', 'no', '0', 'off'].includes(String(meta.enabled).trim().toLowerCase())) continue;
             schedules.push({
               file, filePath: path.join(commandsDir, file),
               projectPath, folder: folder.name,
