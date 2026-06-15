@@ -127,7 +127,9 @@ function refreshFolder(folder) {
         id: s.sessionId, type: 'session', folder: s.folder,
         title: (name ? name + ' ' : '') + s.summary, body: s.textContent,
       });
-      if (s.customTitle) namesToSet.push({ id: s.sessionId, name: s.customTitle });
+      // Promote the JSONL custom-title only when the user hasn't set a UI rename
+      // (name_source 'user'); an absent or 'jsonl'-sourced name may still be refreshed.
+      if (s.customTitle && getMeta(s.sessionId)?.name_source !== 'user') namesToSet.push({ id: s.sessionId, name: s.customTitle });
     }
     changed = true;
   }
@@ -151,7 +153,7 @@ function refreshFolder(folder) {
     upsertSearchEntries(searchEntriesToUpsert);
   }
   for (const { id, name } of namesToSet) {
-    setName(id, name);
+    setName(id, name, 'jsonl');
   }
   for (const sessionId of sessionsToDelete) {
     deleteCachedSession(sessionId);
@@ -398,9 +400,10 @@ function populateCacheViaWorker() {
         sessionCount += sessions.length;
         upsertCachedSessions(sessions);
         for (const s of sessions) {
-          // Only JSONL custom-title (genuine user title) promotes to the DB name column.
-          // AI titles must not — see refreshFolder for the rationale.
-          if (s.customTitle) setName(s.sessionId, s.customTitle);
+          // Only JSONL custom-title promotes to the DB name column, and only when the
+          // user hasn't set a UI rename (name_source 'user'). AI titles must not — see
+          // refreshFolder for the rationale.
+          if (s.customTitle && getMeta(s.sessionId)?.name_source !== 'user') setName(s.sessionId, s.customTitle, 'jsonl');
         }
         upsertSearchEntries(sessions.map(s => {
           // Search title precedence matches the sidebar: user rename > custom-title > ai-title.

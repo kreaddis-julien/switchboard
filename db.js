@@ -133,6 +133,17 @@ const migrations = [
     db.exec('DELETE FROM session_cache');
     db.exec('DELETE FROM cache_meta');
   },
+  // v6: Track the SOURCE of session_meta.name ('user' = UI rename, 'jsonl' = Claude
+  // /rename custom-title) so a JSONL custom-title can no longer clobber a user's UI
+  // rename on re-index, while a fresh CLI /rename still refreshes a jsonl-sourced name.
+  // Existing names are ambiguous (no source was recorded); per the documented
+  // precedence (user rename > JSONL title) we treat any pre-existing name as a user
+  // rename so it is protected. Does not touch the (rebuildable) session_cache.
+  (db) => {
+    const existing = new Set(db.prepare('PRAGMA table_info(session_meta)').all().map((c) => c.name));
+    if (!existing.has('name_source')) db.exec('ALTER TABLE session_meta ADD COLUMN name_source TEXT');
+    db.exec("UPDATE session_meta SET name_source = 'user' WHERE name IS NOT NULL AND name != '' AND name_source IS NULL");
+  },
 ];
 
 const currentDbVersion = (() => {
@@ -171,8 +182,8 @@ const stmts = {
   get: db.prepare('SELECT * FROM session_meta WHERE sessionId = ?'),
   getAll: db.prepare('SELECT * FROM session_meta'),
   upsertName: db.prepare(`
-    INSERT INTO session_meta (sessionId, name) VALUES (?, ?)
-    ON CONFLICT(sessionId) DO UPDATE SET name = excluded.name
+    INSERT INTO session_meta (sessionId, name, name_source) VALUES (?, ?, ?)
+    ON CONFLICT(sessionId) DO UPDATE SET name = excluded.name, name_source = excluded.name_source
   `),
   upsertStar: db.prepare(`
     INSERT INTO session_meta (sessionId, starred) VALUES (?, 1)
@@ -258,8 +269,10 @@ function getAllMeta() {
   return map;
 }
 
-function setName(sessionId, name) {
-  stmts.upsertName.run(sessionId, name);
+// source: 'user' (UI rename) | 'jsonl' (Claude /rename custom-title) | null.
+// A null/empty name clears the source too (no preference to protect).
+function setName(sessionId, name, source = null) {
+  stmts.upsertName.run(sessionId, name, name ? source : null);
 }
 
 function toggleStar(sessionId) {
