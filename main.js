@@ -1235,6 +1235,35 @@ ipcMain.handle('read-session-jsonl', (_event, sessionId) => {
   }
 });
 
+// Meta de session pour le header (modele, branche git, tokens) — parsé du .jsonl.
+// Le .jsonl porte deja message.model, message.usage et gitBranch par entrée.
+ipcMain.handle('get-session-meta', (_event, sessionId) => {
+  const folder = getCachedFolder(sessionId);
+  if (!folder) return {};
+  const jsonlPath = path.join(PROJECTS_DIR, folder, sessionId + '.jsonl');
+  try {
+    const content = fs.readFileSync(jsonlPath, 'utf-8');
+    let model = null, gitBranch = null, cwd = null, ctxTokens = 0, outTokens = 0;
+    for (const line of content.split('\n')) {
+      if (!line.trim()) continue;
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.gitBranch) gitBranch = e.gitBranch;
+      if (e.cwd) cwd = e.cwd;
+      const m = e.message;
+      if (m && m.model && m.model !== '<synthetic>') model = m.model;
+      const u = m && m.usage;
+      if (u) {
+        outTokens += (u.output_tokens || 0);
+        // Contexte courant = derniere usage observee (entree + cache lu + cache cree).
+        ctxTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+      }
+    }
+    return { model, gitBranch, cwd, ctxTokens, outTokens };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 ipcMain.handle('read-subagent-jsonl', (_event, parentSessionId, agentId) => {
   const row = getCachedSession('sub:' + parentSessionId + ':' + agentId);
   if (!row) return { error: 'Subagent session not found in cache' };

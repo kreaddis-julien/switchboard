@@ -970,12 +970,38 @@ function openNewSession(project) {
   return launchNewSession(project);
 }
 
+function prettyModel(m) {
+  if (!m) return '';
+  const parts = m.replace(/^claude-/, '').split('-');
+  const fam = parts.shift() || '';
+  const nums = parts.filter(p => /^\d+$/.test(p)).slice(0, 2);
+  return fam.charAt(0).toUpperCase() + fam.slice(1) + (nums.length ? ' ' + nums.join('.') : '');
+}
+function fmtTokens(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+  return '' + n;
+}
+
 async function showTerminalHeader(session) {
   const displayName = cleanDisplayName(session.name || session.aiTitle || session.summary);
-  terminalHeaderName.textContent = displayName;
-  terminalHeaderId.textContent = session.sessionId;
+  // Breadcrumb projet / session (prefixe attenue facon mock)
+  const projLeaf = (session.projectPath || '').split('/').filter(Boolean).slice(-1)[0] || '';
+  terminalHeaderName.innerHTML = (projLeaf ? `<span class="th-proj">${escapeHtml(projLeaf)}</span><span class="th-sep">/</span>` : '') + escapeHtml(displayName);
+  terminalHeaderId.textContent = (session.sessionId || '').slice(0, 8);
   terminalHeader.style.display = '';
   updateTerminalHeader();
+
+  // Chips meta (modele, branche git, contexte) parses du .jsonl — conteneur vide+rempli.
+  let meta = document.getElementById('terminal-header-meta');
+  if (!meta) { meta = document.createElement('span'); meta.id = 'terminal-header-meta'; terminalHeaderId.insertAdjacentElement('afterend', meta); }
+  meta.innerHTML = '';
+  window.api.getSessionMeta(session.sessionId).then(m => {
+    if (!m || m.error) return;
+    if (m.model) meta.insertAdjacentHTML('beforeend', `<span class="th-chip">${escapeHtml(prettyModel(m.model))}</span>`);
+    if (m.gitBranch) meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-branch"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M18 6a3 3 0 0 1-3 3H9"/></svg>${escapeHtml(m.gitBranch)}</span>`);
+    if (m.ctxTokens) meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-ctx">${fmtTokens(m.ctxTokens)} ctx</span>`);
+  }).catch(() => {});
 
   // Show active shell profile
   try {
