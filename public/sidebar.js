@@ -898,6 +898,23 @@ function buildSessionItem(session) {
     summaryEl.prepend(badge);
   }
   info.appendChild(summaryEl);
+
+  // Session-health badge — only flag sessions that warrant attention
+  // (marathon-risk / handoff-recommended). Healthy/growing show nothing to keep
+  // the dense sidebar uncluttered. Reasons (which thresholds were crossed) go in
+  // the tooltip. Guarded so a missing module never breaks the row.
+  if (typeof getSessionHealth === 'function' && session.type !== 'terminal') {
+    const health = getSessionHealth(session);
+    if (health && health.shouldWarn) {
+      const hb = document.createElement('span');
+      hb.className = 'session-health ' + health.className;
+      hb.textContent = health.label;
+      const reasons = (health.reasons || []).map((r) => r.label).join(' · ');
+      hb.title = reasons ? health.label + ': ' + reasons : health.label;
+      info.appendChild(hb);
+    }
+  }
+
   row.title = timeStr + (session.messageCount ? ' · ' + session.messageCount + ' msgs' : '');
 
   // Action buttons container

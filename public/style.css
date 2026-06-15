@@ -1148,6 +1148,30 @@ body { display: flex; flex-direction: column; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* --- Session-health badge (only shown for warn states) --- */
+.session-health {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.session-health.health-marathon-risk {
+  color: var(--amber);
+  background: rgb(var(--amber-rgb) / 0.14);
+  border: 1px solid rgb(var(--amber-rgb) / 0.3);
+}
+.session-health.health-handoff-recommended {
+  color: var(--warn);
+  background: rgb(var(--warn-rgb) / 0.14);
+  border: 1px solid rgb(var(--warn-rgb) / 0.32);
+}
 /* L'heure reste visible au survol (le bouton "..." apparait a sa droite). */
 
 /* ===== Brand header sidebar (mark orange + Switchboard) ===== */
