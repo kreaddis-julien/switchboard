@@ -102,6 +102,8 @@ function hideAllViewers() {
   memoryViewer.style.display = 'none';
   settingsViewer.style.display = 'none';
   jsonlViewer.style.display = 'none';
+  const orchViewer = document.getElementById('orch-viewer');
+  if (orchViewer) orchViewer.style.display = 'none';
   terminalArea.style.display = '';
 }
 

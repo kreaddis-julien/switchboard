@@ -46,3 +46,16 @@ function escapeHtml(str) {
 function shellEscape(path) {
   return "'" + path.replace(/'/g, "'\\''") + "'";
 }
+
+// Sanitize then set innerHTML via DOMPurify (bundled with codemirror-bundle.js).
+// Falls back to textContent if DOMPurify hasn't loaded, so we never render
+// unsanitized HTML. Used by the Agent Teams view to render plan markdown.
+function safeSetHtml(el, html) {
+  if (!el) return;
+  const src = String(html ?? '');
+  if (window.DOMPurify) {
+    el.innerHTML = window.DOMPurify.sanitize(src, { USE_PROFILES: { html: true } });
+  } else {
+    el.textContent = src;
+  }
+}
