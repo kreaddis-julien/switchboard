@@ -142,8 +142,7 @@ if (window.matchMedia) {
 // back to the always-visible Sessions tab.
 window._applyTabVisibility = (s) => {
   s = s || {};
-  // Refonte: nav 4 onglets toujours visible (segmented pill facon mock), independamment des reglages.
-  const map = { plans: true, memory: true, stats: true };
+  const map = { plans: s.showPlansTab !== false, memory: s.showMemoryTab !== false, stats: s.showStatsTab !== false };
   for (const [tab, show] of Object.entries(map)) {
     const btn = document.querySelector(`.sidebar-tab[data-tab="${tab}"]`);
     if (btn) btn.style.display = show ? '' : 'none';
@@ -152,14 +151,16 @@ window._applyTabVisibility = (s) => {
       if (sessionsBtn) sessionsBtn.click();
     }
   }
-  // Refonte: la pilule d'onglets reste toujours visible ; le bouton collapse vit
-  // dans la rangee de filtres (pilule d'onglets propre, sans bouton parasite).
+  // Reglages respectes : le strip d'onglets se masque quand aucun onglet optionnel
+  // n'est actif. Le bouton collapse vit TOUJOURS dans la rangee de filtres pour que
+  // la pilule d'onglets reste propre (sans bouton parasite) quand elle est visible.
+  const anyShown = map.plans || map.memory || map.stats;
   const tabsRow = document.getElementById('sidebar-tabs');
   const filtersRow = document.getElementById('session-filters');
   const collapse = document.getElementById('sidebar-collapse-btn');
   const sessionsTabBtn = document.querySelector('.sidebar-tab[data-tab="sessions"]');
-  document.body.classList.remove('sb-no-tabs');
-  if (tabsRow) tabsRow.style.display = '';
+  document.body.classList.toggle('sb-no-tabs', !anyShown);
+  if (tabsRow) tabsRow.style.display = anyShown ? '' : 'none';
   if (sessionsTabBtn) sessionsTabBtn.style.display = '';
   if (collapse && filtersRow && collapse.parentElement !== filtersRow) filtersRow.appendChild(collapse);
 };
