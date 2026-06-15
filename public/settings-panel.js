@@ -86,6 +86,10 @@
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
 
+    // Working copy of the (global-only) re-bindable keyboard shortcuts.
+    let scShortcuts = normalizeShortcuts(isProject ? null : current.shortcuts);
+    const scIsMac = typeof isMac !== 'undefined' ? isMac : /Mac|iPhone|iPad/.test(navigator.platform);
+
     let shellProfiles = [];
     try { shellProfiles = await window.api.getShellProfiles(); } catch (e) { console.warn('[settings] shell profiles unavailable', e); }
 
@@ -171,6 +175,9 @@
               <option value="auto" ${shellProfileValue === 'auto' ? 'selected' : ''}>Auto (detect)</option>
               ${shellProfiles.map((p) => `<option value="${escapeHtml(p.id)}" ${shellProfileValue === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
             </select>`)}
+          ${SHORTCUT_DEFS.map((def) => row(def.label, def.description,
+            `<button class="settings-shortcut-btn" id="sv-sc-${def.id}" data-sc-id="${def.id}">${escapeHtml(formatBinding(def.id, scIsMac, scShortcuts))}</button>`)).join('')}
+          <div class="settings-pane-hint">Click a shortcut, then press the new combination. At least one modifier (${scIsMac ? 'Cmd' : 'Ctrl'}, ${scIsMac ? 'Option' : 'Alt'} or Shift) is required. Press Esc to cancel, or click again to reset to default.</div>
         </div>
 
         <div class="settings-pane" data-cat="notifications">
@@ -236,6 +243,49 @@
     settingsViewerBody.querySelectorAll('.settings-nav-item').forEach((b) => b.addEventListener('click', () => showCat(b.dataset.cat)));
     showCat(nav[0].cat);
 
+    // --- Keyboard shortcut rebinding (global only) ---
+    // Capture listeners live on the button element itself (not on document), so
+    // they can never leak app-wide: losing focus (incl. the viewer being closed
+    // by any path) fires blur -> stops capture, and re-opening replaces the body.
+    let capturingBtn = null;
+    function stopShortcutCapture() {
+      if (capturingBtn) {
+        capturingBtn.classList.remove('capturing');
+        capturingBtn.textContent = formatBinding(capturingBtn.dataset.scId, scIsMac, scShortcuts);
+        capturingBtn = null;
+      }
+    }
+    settingsViewerBody.querySelectorAll('.settings-shortcut-btn').forEach((btn) => {
+      const id = btn.dataset.scId;
+      const def = SHORTCUT_DEFS.find((d) => d.id === id);
+      btn.addEventListener('click', () => {
+        // Clicking the button that is already capturing resets it to default.
+        if (capturingBtn === btn) {
+          scShortcuts = { ...scShortcuts, [id]: normalizeShortcuts(null)[id] };
+          stopShortcutCapture();
+          btn.blur();
+          return;
+        }
+        stopShortcutCapture();
+        capturingBtn = btn;
+        btn.classList.add('capturing');
+        btn.textContent = 'Press keys…';
+        btn.focus();
+      });
+      btn.addEventListener('keydown', (e) => {
+        if (capturingBtn !== btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Escape') { stopShortcutCapture(); btn.blur(); return; }
+        const binding = captureBinding(e, def, scIsMac);
+        if (!binding) return; // chord incomplete — keep listening
+        scShortcuts = { ...scShortcuts, [id]: binding };
+        stopShortcutCapture();
+        btn.blur();
+      });
+      btn.addEventListener('blur', () => { if (capturingBtn === btn) stopShortcutCapture(); });
+    });
+
     // --- Saved indicator ---
     const savedEl = settingsViewerBody.querySelector('#sv-saved');
     let savedTimer = null;
@@ -298,7 +348,9 @@
           tbList.querySelectorAll('[data-toolbar-action]').forEach((s) => { placement[s.dataset.toolbarAction] = s.value; });
           settings.toolbarIcons = placement;
         }
+        settings.shortcuts = scShortcuts;
       }
+      stopShortcutCapture();
 
       try {
         await window.api.setSetting(settingsKey, settings);
@@ -314,6 +366,7 @@
         if (settings.visibleSessionCount && typeof window._setVisibleSessionCount === 'function') window._setVisibleSessionCount(settings.visibleSessionCount);
         if (settings.sessionMaxAgeDays && typeof window._setSessionMaxAge === 'function') window._setSessionMaxAge(settings.sessionMaxAgeDays);
         if (settings.terminalTheme && typeof window._applyTerminalTheme === 'function') window._applyTerminalTheme(settings.terminalTheme);
+        if (settings.shortcuts && typeof window._applyShortcuts === 'function') window._applyShortcuts(settings.shortcuts);
         if (typeof window._applyAppearance === 'function') window._applyAppearance(settings.appearance);
         if (typeof window._setSoundNotifications === 'function') window._setSoundNotifications(settings.soundNotifications);
         if (typeof window._setSystemNotifications === 'function') window._setSystemNotifications(settings.systemNotifications);

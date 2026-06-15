@@ -1370,9 +1370,8 @@ initGridObservers();
   // e._handled to prevent the document listener from double-firing the same action.
   document.addEventListener('keydown', (e) => {
     if (e._handled) return;
-    // Cmd/Ctrl+Shift+G → toggle grid view
-    const mod = isMac ? e.metaKey : e.ctrlKey;
-    if (e.key === 'g' && mod && e.shiftKey && !e.altKey) {
+    // Toggle grid view (default Cmd/Ctrl+Shift+G)
+    if (matchShortcut('gridToggle', e, isMac, appShortcuts)) {
       e.preventDefault();
       toggleGridView();
       return;
@@ -1426,8 +1425,12 @@ setTimeout(() => {
     window._setShowSubagentSessions(global.showSubagentSessions);
     if (typeof window._applyToolbarLayout === 'function') window._applyToolbarLayout(global.toolbarIcons, global.toolbarOrder);
     window._applyTabVisibility(global);
+    if (global.shortcuts) setAppShortcuts(global.shortcuts);
   }
 })();
+
+// Let the settings panel push updated key bindings live (no restart needed).
+window._applyShortcuts = (stored) => setAppShortcuts(stored);
 
 loadProjects().then(() => {
   // Restore grid view preference before opening sessions so they enter grid mode

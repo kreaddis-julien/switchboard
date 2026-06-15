@@ -3739,6 +3739,31 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
   cursor: not-allowed;
 }
 
+/* --- Rebindable shortcut button (Keyboard Shortcuts settings) --- */
+.settings-shortcut-btn {
+  min-width: 132px;
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-c0c0d0);
+  background: rgb(var(--on) / 0.04);
+  border: 1px solid rgb(var(--on) / 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .15s ease, background .15s ease;
+}
+.settings-shortcut-btn:hover {
+  border-color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.12);
+}
+.settings-shortcut-btn.capturing {
+  color: var(--accent);
+  border-color: var(--accent);
+  border-style: dashed;
+  background: rgb(var(--accent-rgb) / 0.10);
+}
+
 .settings-select {
   background: rgb(var(--on) / 0.04);
   border: 1px solid rgb(var(--on) / 0.08);
