@@ -7,6 +7,11 @@ const pty = require('node-pty');
 const log = require('electron-log');
 // getFolderIndexMtimeMs moved to session-cache.js
 const { appendToOutputBuffer, MAX_BUFFER_SIZE } = require('./output-buffer');
+// Agent Teams (prototype): session profiles + orchestration. orchModule is
+// assigned in app.whenReady once the spawn deps exist.
+const profilesModule = require('./profiles');
+const sessionProfiles = require('./session-profiles');
+let orchModule = null;
 const { startMcpServer, shutdownMcpServer, shutdownAll: shutdownAllMcp, resolvePendingDiff, rekeyMcpServer, cleanStaleLockFiles } = require('./mcp-bridge');
 const { fetchAndTransformUsage } = require('./claude-auth');
 log.transports.file.level = app.isPackaged ? 'info' : 'debug';
@@ -1188,6 +1193,9 @@ const SETTING_DEFAULTS = {
   terminalTheme: 'switchboard',
   mcpEmulation: false,
   shellProfile: 'auto',
+  // Agent Teams: secure-by-default data-egress policy. When false, worker
+  // profiles may only point at Anthropic or a loopback address (see profiles.js).
+  agentTeamsAllowExternalModels: false,
 };
 
 ipcMain.handle('get-shell-profiles', () => {
@@ -1336,7 +1344,11 @@ ipcMain.handle('archive-session', (_event, sessionId, archived) => {
 });
 
 // --- IPC: open-terminal ---
-ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, sessionOptions) => {
+// Extracted from the 'open-terminal' IPC handler so Agent Teams (orch-ipc /
+// orch-spawner) can spawn sessions through the EXACT same path as the renderer.
+// _event was never used in the body, so the extraction is behaviour-preserving;
+// the IPC handler below just delegates.
+async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
   if (!mainWindow) return { ok: false, error: 'no window' };
 
   // Reattach to existing session
@@ -1528,6 +1540,29 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
         ptyEnv.CLAUDE_CODE_SSE_PORT = String(mcpServer.port);
       }
 
+      // Session profile: merge the profile's env (model/endpoint overrides) into
+      // the pty env. $VAR refs are resolved against the host env; unresolved refs
+      // are dropped (never leaked as literals). Used by Agent Teams to point a
+      // worker session at Claude Haiku or a local model.
+      try {
+        const profile = profilesModule.pickProfileForSession(sessionOptions?.profileId);
+        if (profile) {
+          Object.assign(ptyEnv, profilesModule.resolveEnv(profile.env));
+          sessionProfiles.recordSessionProfile(sessionId, profile.id);
+        } else if (sessionOptions?.profileId === 'none') {
+          sessionProfiles.recordSessionProfile(sessionId, null);
+        }
+      } catch (err) {
+        log.error(`[profiles] Failed to apply profile: ${err.message}`);
+      }
+
+      // Agent Teams: experimental multi-agent coordination. Standard sub-agents
+      // (Task tool) are always enabled — this only gates the experimental teams
+      // feature, and only for sessions explicitly launched with it.
+      if (sessionOptions?.agentTeams) {
+        ptyEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
+      }
+
       ptyProcess = pty.spawn(shell, shellArgs(shell, claudeCmd, shellExtraArgs), {
         name: 'xterm-256color',
         cols: 120,
@@ -1677,7 +1712,10 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
   }
 
   return { ok: true, reattached: false, mcpActive: !!mcpServer, mcpError: mcpStartError };
-});
+}
+
+ipcMain.handle('open-terminal', (_event, sessionId, projectPath, isNew, sessionOptions) =>
+  openTerminalImpl(sessionId, projectPath, isNew, sessionOptions));
 
 // --- IPC: terminal-input (fire-and-forget) ---
 ipcMain.on('terminal-input', (_event, sessionId, data) => {
@@ -2018,6 +2056,37 @@ app.whenReady().then(() => {
 
   scheduleIpc.init(log, runScheduleCommand);
   startScheduler(log, runScheduleCommand);
+
+  // --- Agent Teams (experimental prototype) ---
+  // Profiles (with the data-egress guard) + session-profile persistence + the
+  // orchestration IPC. Sessions spawned by the orchestrator go through
+  // openTerminalImpl, so they behave exactly like user-opened terminals
+  // (profiles, buffering, busy detection). Gated per-session by the agentTeams
+  // flag; the egress guard reads agentTeamsAllowExternalModels (default false).
+  try {
+    profilesModule.init(log, () => !!(getSetting('global') || {}).agentTeamsAllowExternalModels);
+    sessionProfiles.init(log);
+    try { require('./orch-bootstrap').ensureClaudeAssets({ log }); }
+    catch (err) { log.error(`[orch] bootstrap failed: ${err.message}`); }
+    orchModule = require('./orch-ipc').init(log, {
+      openTerminal: openTerminalImpl,
+      sendInput: (sessionId, text) => {
+        const session = activeSessions.get(sessionId);
+        if (!session || session.exited) return false;
+        try { session.pty.write(text); return true; } catch { return false; }
+      },
+      isSessionActive: (sessionId) => {
+        const session = activeSessions.get(sessionId);
+        return !!session && !session.exited;
+      },
+      isSessionBusy: (sessionId) => !!activeSessions.get(sessionId)?._cliBusy,
+      getMainWindow: () => mainWindow,
+      // runValidation (phase-gate runner) intentionally omitted in this proto:
+      // orch-spawner skips gates when deps.runValidation is absent. To add later.
+    });
+  } catch (err) {
+    log.error(`[orch] Agent Teams init failed: ${err.message}`);
+  }
 
   // Full cache rebuild on every startup — prunes stale rows for deleted
   // transcripts (sub-agent/workflow runs cleaned up between sessions leave
