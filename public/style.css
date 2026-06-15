@@ -1197,7 +1197,7 @@ body { display: flex; flex-direction: column; }
   min-width: 18px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
   padding: 0 5px; border-radius: 6px; flex-shrink: 0;
 }
-.project-header:hover .project-count { display: none; }
+/* Le compteur de sessions reste visible au survol (le menu "..." apparait a cote). */
 
 /* Pin : masquee si non epinglee (colonne preservee), revelee au survol */
 .session-item .session-pin:not(.pinned) { visibility: hidden; }
