@@ -51,3 +51,15 @@ test('cron: dow only ("*" dom) is AND-collapsed to the dow side', () => {
 test('cron: rejects malformed expressions (wrong field count)', () => {
   assert.equal(cronMatches('0 9 * *', at(2026, 6, 1, 9, 0)), false);
 });
+
+test('cron: dow 7 matches Sunday (getDay() returns 0)', () => {
+  // 2026-06-07 is a Sunday.
+  assert.equal(cronMatches('0 9 * * 7', at(2026, 6, 7, 9, 0)), true);
+  assert.equal(cronMatches('0 9 * * 7', at(2026, 6, 8, 9, 0)), false); // Monday
+  assert.equal(cronMatches('0 9 * * 0', at(2026, 6, 7, 9, 0)), true);  // 0 also Sunday
+  assert.equal(cronMatches('0 9 * * 1-7', at(2026, 6, 7, 9, 0)), true); // range incl. 7 -> Sunday
+});
+
+test('cron: */0 never matches (no div-by-zero NaN match)', () => {
+  assert.equal(cronMatches('*/0 * * * *', at(2026, 6, 1, 9, 0)), false);
+});

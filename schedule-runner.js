@@ -48,6 +48,7 @@ function cronFieldMatches(field, value) {
   if (field === '*') return true;
   if (field.startsWith('*/')) {
     const step = parseInt(field.slice(2), 10);
+    if (!Number.isInteger(step) || step < 1) return false; // '*/0' -> NaN, guard div-by-zero
     return value % step === 0;
   }
   if (field.includes(',')) {
@@ -66,7 +67,11 @@ function cronMatches(cronExpr, now) {
   if (parts.length !== 5) return false;
   const [minute, hour, dom, month, dow] = parts;
   const domMatch = cronFieldMatches(dom, now.getDate());
-  const dowMatch = cronFieldMatches(dow, now.getDay());
+  // Standard cron treats both 0 and 7 as Sunday, but getDay() only returns 0-6.
+  // On Sunday, also try 7 so fields/ranges/lists written with 7 (e.g. '7', '0,7',
+  // '1-7') still match.
+  const day = now.getDay();
+  const dowMatch = cronFieldMatches(dow, day) || (day === 0 && cronFieldMatches(dow, 7));
   // POSIX cron: when BOTH day-of-month and day-of-week are restricted, the entry
   // fires if EITHER matches (OR). If one is '*', they are AND-combined (which, with
   // the '*' side always true, collapses to the restricted side).
