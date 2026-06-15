@@ -362,7 +362,12 @@ async function startMcpServer(sessionId, workspaceFolders, mainWindow, log) {
   wss.on('connection', (ws, req) => {
     // Validate auth
     const headerAuth = req.headers['x-claude-code-ide-authorization'];
-    if (headerAuth !== authToken) {
+    // Constant-time compare. The length/type guard is mandatory: timingSafeEqual
+    // throws on unequal-length or non-Buffer input, and a missing/duplicate header
+    // (undefined/array) must fail closed rather than throw.
+    const expected = Buffer.from(authToken, 'utf8');
+    const provided = typeof headerAuth === 'string' ? Buffer.from(headerAuth, 'utf8') : null;
+    if (!provided || provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
       log.warn(`[mcp] session=${sessionId} rejected connection: bad auth`);
       ws.close(4001, 'Unauthorized');
       return;
