@@ -28,6 +28,11 @@ const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
 db.pragma('busy_timeout = 5000');
+// NORMAL is the standard pairing with WAL: the WAL is still synced on
+// checkpoint, so the database cannot corrupt; at most the last transactions
+// before an OS-level power loss are rolled back. Default FULL fsyncs every
+// write for no extra integrity in WAL mode.
+db.pragma('synchronous = NORMAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS session_meta (
@@ -434,6 +439,11 @@ function deleteSetting(key) {
 }
 
 function closeDb() {
+  // Truncate the WAL back into the main file on clean shutdown. Long-lived
+  // reader connections (the scan worker) can starve SQLite's automatic
+  // checkpoints, letting the -wal file grow to tens of MB (witnessed: 39 MB)
+  // and adding read amplification on every query of the next run.
+  try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch {}
   try { db.close(); } catch {}
 }
 

@@ -1909,6 +1909,9 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
   startProjectsWatcher();
+  // Remove IDE lock files left behind by a crashed instance whose PID was
+  // reused (the function only unlinks locks matching our own pid).
+  cleanStaleLockFiles(log);
   scheduleIpc.ensureScheduleCreatorCommand();
 
   // Shared runCommand for cron scheduler and "run now" — takes argv, not a shell string
@@ -1956,7 +1959,16 @@ app.whenReady().then(() => {
   scheduleIpc.init(log, runScheduleCommand);
   startScheduler(log, runScheduleCommand);
 
-  // Re-index search if FTS table was recreated (e.g. tokenizer config change)
+  // Full cache rebuild on every startup — prunes stale rows for deleted
+  // transcripts (sub-agent/workflow runs cleaned up between sessions leave
+  // ghost rows in session_cache that show in the sidebar but are inaccessible
+  // on open). populateCacheViaWorker runs in a Worker thread and is
+  // non-blocking; concurrent callers share the same in-flight Promise.
+  populateCacheViaWorker();
+
+  // Re-index search if FTS table was recreated (e.g. tokenizer config change).
+  // populateCacheViaWorker is already running above; the guard inside it
+  // (populatePromise !== null) means this is a no-op on the same tick.
   if (searchFtsRecreated) populateCacheViaWorker();
 
   // Auto-update is intentionally disabled in this fork. We are built locally from
