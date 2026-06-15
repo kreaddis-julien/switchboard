@@ -68,6 +68,7 @@ For Windows/Linux, see [Building](#building).
 
 **Sidebar & UI**
 - Session actions live behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no accidental stop/fork on a mis-hover.
+- **Project actions** likewise live behind a per-project **"⋯" menu** (New session / Scheduled task / Project settings / Archive sessions) instead of a row of inline icons.
 - **Settings** opens from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
 - **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path).
 - **Read a transcript without attaching** — clicking a session opens it normally (attaches/focuses its terminal); to inspect a dormant session's transcript read-only, use **"View messages"** in the **"⋯" menu**. Subagent sessions, which aren't resumable, always open read-only. Relates to upstream [#25](https://github.com/doctly/switchboard/issues/25).
@@ -82,6 +83,11 @@ For Windows/Linux, see [Building](#building).
 - **Scan reads capped at 2 MB** so a huge `.jsonl` can't OOM the cache scan (the viewer still loads the full file on demand). *(ported from [folknor](https://github.com/folknor/switchboard))*
 - **Throttled cache↔filesystem reconcile** — the sidebar paints with two `get-projects` calls, so the on-disk reconcile sweep is throttled (1 s) to run once per paint instead of twice. *(ported from [JeanBaptisteRenard](https://github.com/JeanBaptisteRenard/switchboard))*
 - **WebGL ghost-glyph fix** — revealing a terminal (session switch, grid↔single toggle) now clears the WebGL texture atlas and forces a full repaint, so stale glyphs no longer linger as ghosts. *(adapted from upstream [#63](https://github.com/doctly/switchboard/pull/63))*
+- **Sessions launched from inside a Claude Code session now persist** — `cleanPtyEnv` strips inherited `CLAUDE_CODE_*` vars (notably `CLAUDE_CODE_SESSION_ID` / `_CHILD_SESSION` / `_FORK_SUBAGENT`) that otherwise made every spawned `claude` run as a non-persisting *child* session: no transcript file on disk, so the session stayed stuck on "New session" and `/rename` was never reflected.
+- **MCP diff can't hang the CLI** — `openDiff` now resolves a superseded or abandoned diff (overwrite resolves the prior diff, plus a timeout and resolve-on-send-failure), so a Claude Edit can't block forever waiting on a tab that was replaced or never answered.
+- **Defense-in-depth hardening** — renderer `sandbox: true`; transcript markdown routed through DOMPurify (matching the other viewers); `save-plan` path guard tightened (trailing-separator prefix match + `.md` only); per-file viewer watcher gets an `error` handler so an OS watch failure can't crash the main process.
+- **Scheduler cron fixes** — POSIX day-of-month/day-of-week **OR** semantics when both are set; `enabled:` now honors `false` / `no` / `0` / `off` (not just the exact string `false`).
+- **Toolbar & icon polish** — the collapse button no longer strands itself mid-row when toolbar icons are hidden; the re-sort icon is now distinct from the refresh icon; the rescan button is styled like its neighbours. The pre-paint theme bootstrap moved to an external `early-theme.js` so it isn't blocked by the strict CSP (no more theme flash).
 
 **Curated upstream PRs merged in**
 - Security: [#32](https://github.com/doctly/switchboard/pull/32) (shell-injection → argv arrays), [#27](https://github.com/doctly/switchboard/pull/27) (XSS sanitization + CSP + IPC path guards, partial).
