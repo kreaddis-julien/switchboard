@@ -6,6 +6,7 @@ const os = require('os');
 const pty = require('node-pty');
 const log = require('electron-log');
 // getFolderIndexMtimeMs moved to session-cache.js
+const { appendToOutputBuffer, MAX_BUFFER_SIZE } = require('./output-buffer');
 const { startMcpServer, shutdownMcpServer, shutdownAll: shutdownAllMcp, resolvePendingDiff, rekeyMcpServer, cleanStaleLockFiles } = require('./mcp-bridge');
 const { fetchAndTransformUsage } = require('./claude-auth');
 log.transports.file.level = app.isPackaged ? 'info' : 'debug';
@@ -101,7 +102,7 @@ const PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 const PLANS_DIR = path.join(os.homedir(), '.claude', 'plans');
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const STATS_CACHE_PATH = path.join(CLAUDE_DIR, 'stats-cache.json');
-const MAX_BUFFER_SIZE = 256 * 1024;
+// MAX_BUFFER_SIZE imported from output-buffer.js (single source of truth)
 
 // --- Path validation for IPC file operations ---
 // Sensitive paths that should never be read/written via the file panel IPC.
@@ -1604,11 +1605,7 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
 
     // Buffer output (skip resize-triggered redraws for plain terminals)
     if (!session._suppressBuffer) {
-      session.outputBuffer.push(data);
-      session.outputBufferSize += data.length;
-      while (session.outputBufferSize > MAX_BUFFER_SIZE && session.outputBuffer.length > 1) {
-        session.outputBufferSize -= session.outputBuffer.shift().length;
-      }
+      appendToOutputBuffer(session, data, MAX_BUFFER_SIZE);
     }
 
     if (mainWindow && !mainWindow.isDestroyed()) {
