@@ -1007,6 +1007,28 @@ async function showTerminalHeader(session) {
     if (m.ctxTokens) meta.insertAdjacentHTML('beforeend', `<span class="th-chip th-ctx">${fmtTokens(m.ctxTokens)} ctx</span>`);
   }).catch(() => {});
 
+  // Actions rapides (facon mock) : "Voir messages" + "Fork", en groupe ghost bordé,
+  // a gauche du bouton Stop. Cablees sur les memes handlers que le menu de session.
+  const stopBtn = document.getElementById('terminal-stop-btn');
+  let actions = document.getElementById('terminal-header-actions');
+  if (!actions && stopBtn && stopBtn.parentElement) {
+    actions = document.createElement('div');
+    actions.id = 'terminal-header-actions';
+    actions.innerHTML =
+      '<button class="th-act" data-act="messages" title="Voir les messages"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></button>' +
+      '<button class="th-act" data-act="fork" title="Fork la session"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5m13 13h5v-5M8 21H3v-5"/></svg></button>';
+    stopBtn.parentElement.insertBefore(actions, stopBtn);
+  }
+  if (actions) {
+    const msgBtn = actions.querySelector('[data-act="messages"]');
+    const forkBtn = actions.querySelector('[data-act="fork"]');
+    if (msgBtn) msgBtn.onclick = () => { if (typeof showJsonlViewer === 'function') showJsonlViewer(session); };
+    if (forkBtn) forkBtn.onclick = () => {
+      const project = (typeof cachedAllProjects !== 'undefined' && cachedAllProjects.find(p => p.projectPath === session.projectPath)) || { projectPath: session.projectPath };
+      if (typeof forkSession === 'function') forkSession(session, project);
+    };
+  }
+
   // Show active shell profile
   try {
     const effective = await window.api.getEffectiveSettings(session.projectPath);

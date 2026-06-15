@@ -1215,6 +1215,25 @@ body { display: flex; flex-direction: column; }
 }
 .th-chip svg { width: 11px; height: 11px; color: var(--c-808098); }
 
+/* Groupe de boutons ghost du header session (Messages / Fork) — facon mock. */
+#terminal-header-actions {
+  display: inline-flex;
+  background: var(--c-1a1a2e);
+  border: 1px solid rgb(var(--on) / 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+.th-act {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  color: var(--c-9090a8); background: none; border: none;
+  border-right: 1px solid rgb(var(--on) / 0.08);
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.th-act:last-child { border-right: none; }
+.th-act:hover { background: rgb(var(--on) / 0.07); color: var(--c-e0e0e0); }
+
 /* ===== Sidebar : pas de marque, projets differencies, filtres alignes a droite ===== */
 /* Le nom de l'app en haut a gauche est redondant -> masque. */
 #sb-brand { display: none; }
