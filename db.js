@@ -2,7 +2,12 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const os = require('os');
 
-const DATA_DIR = path.join(os.homedir(), '.switchboard');
+// SWITCHBOARD_DATA_DIR lets dev/agent/test runs point at a separate DB instead
+// of the real ~/.switchboard one (e.g. to exercise the FTS migration on a copy
+// without touching the user's data). Unset = the normal ~/.switchboard path.
+const DATA_DIR = process.env.SWITCHBOARD_DATA_DIR
+  ? path.resolve(process.env.SWITCHBOARD_DATA_DIR.replace(/^~(?=$|\/)/, os.homedir()))
+  : path.join(os.homedir(), '.switchboard');
 const fs = require('fs');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -149,6 +154,27 @@ const migrations = [
     if (!existing.has('name_source')) db.exec('ALTER TABLE session_meta ADD COLUMN name_source TEXT');
     db.exec("UPDATE session_meta SET name_source = 'user' WHERE name IS NOT NULL AND name != '' AND name_source IS NULL");
   },
+  // v7: Convert search_fts from a plain fts5 table (which stores a full copy of
+  // title+body, inflating the DB ~14x) to an external-content fts5 table backed
+  // by search_content (a single, truncated copy). Drops the DB from ~190 MB to
+  // ~35-40 MB for a typical corpus. snippet()/highlight() keep working: fts5
+  // reads columns from search_content on demand instead of its own shadow copy.
+  //
+  // searchFtsRecreated = true tells main.js to trigger a full repopulate via
+  // populateCacheViaWorker(), which re-inserts all rows with the new schema.
+  //
+  // VACUUM: the DROP TABLE frees the old plain-fts5 shadow pages (~152 MB) but
+  // SQLite only adds them to the freelist — the file stays its old size. A
+  // one-time VACUUM reclaims it immediately (empirically 225 MB -> 37.9 MB in
+  // ~0.5 s on a 236 MB DB). VACUUM cannot run inside a transaction; the
+  // migrations loop is NOT wrapped in one, so db.exec('VACUUM') here is legal.
+  (db) => {
+    try { db.exec('DROP TABLE IF EXISTS search_fts'); } catch {}
+    try { db.exec('DROP TABLE IF EXISTS search_content'); } catch {}
+    try { db.exec('DELETE FROM search_map'); } catch {}
+    try { db.exec('VACUUM'); } catch {}
+    searchFtsRecreated = true;
+  },
 ];
 
 const currentDbVersion = (() => {
@@ -165,10 +191,34 @@ if (migrations.length > currentDbVersion) {
   db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_version', ?)").run(JSON.stringify(migrations.length));
 }
 
-// --- FTS5 full-text search ---
+// --- FTS5 full-text search (external-content table) ---
+//
+// Body is capped at FTS_BODY_MAX_CHARS before being stored. This bounds the
+// content table size independently of raw transcript length, while keeping
+// enough text for useful snippet() previews.
+const FTS_BODY_MAX_CHARS = 32768; // 32768 UTF-16 code units; surrogate split at the boundary is negligible for ASCII transcripts
+
+// search_content holds the plaintext the fts5 index reads columns from. It is
+// the single authoritative copy: title is full-length; body is truncated to
+// FTS_BODY_MAX_CHARS. Keeping it separate from search_map (id/type/folder only)
+// lets us JOIN on rowid cheaply.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS search_content (
+    rowid INTEGER PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    body  TEXT NOT NULL DEFAULT ''
+  )
+`);
+
+// search_fts is an external-content fts5 table: it stores only the trigram
+// index, not a copy of title/body. snippet()/highlight() read the matching
+// search_content row at query time (zero extra copy). Eliminates the ~14x
+// amplification of the old plain fts5 table.
 db.exec(`
   CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
-    title, body, tokenize='trigram case_sensitive 0'
+    title, body,
+    content='search_content',
+    tokenize='trigram case_sensitive 0'
   )
 `);
 
@@ -234,19 +284,36 @@ const stmts = {
       projectPath = excluded.projectPath, indexMtimeMs = excluded.indexMtimeMs
   `),
   metaDelete: db.prepare('DELETE FROM cache_meta WHERE folder = ?'),
-  // FTS search statements
+  // FTS search statements.
+  // External-content protocol: search_content is the authoritative column store;
+  // search_fts holds only the trigram index and reads columns from search_content
+  // at query time. Delete/insert must keep both tables in sync.
+  searchDeleteContentBySession: db.prepare('DELETE FROM search_content WHERE rowid IN (SELECT rowid FROM search_map WHERE type = \'session\' AND id = ?)'),
   searchDeleteBySession: db.prepare('DELETE FROM search_fts WHERE rowid IN (SELECT rowid FROM search_map WHERE type = \'session\' AND id = ?)'),
   searchMapDeleteBySession: db.prepare('DELETE FROM search_map WHERE type = \'session\' AND id = ?'),
+  searchDeleteContentByFolder: db.prepare('DELETE FROM search_content WHERE rowid IN (SELECT rowid FROM search_map WHERE type = \'session\' AND folder = ?)'),
   searchDeleteByFolder: db.prepare('DELETE FROM search_fts WHERE rowid IN (SELECT rowid FROM search_map WHERE type = \'session\' AND folder = ?)'),
   searchMapDeleteByFolder: db.prepare('DELETE FROM search_map WHERE type = \'session\' AND folder = ?'),
+  searchDeleteContentByType: db.prepare('DELETE FROM search_content WHERE rowid IN (SELECT rowid FROM search_map WHERE type = ?)'),
   searchDeleteByType: db.prepare('DELETE FROM search_fts WHERE rowid IN (SELECT rowid FROM search_map WHERE type = ?)'),
   searchMapDeleteByType: db.prepare('DELETE FROM search_map WHERE type = ?'),
+  // Insert: search_content row first (external-content protocol requires the
+  // content row to exist before the fts5 shadow row is written).
+  searchInsertContent: db.prepare('INSERT OR REPLACE INTO search_content(rowid, title, body) VALUES (?, ?, ?)'),
   searchInsertFts: db.prepare('INSERT OR REPLACE INTO search_fts(rowid, title, body) VALUES (?, ?, ?)'),
   searchInsertMap: db.prepare('INSERT OR REPLACE INTO search_map(id, type, folder) VALUES (?, ?, ?)'),
   searchMapLookup: db.prepare('SELECT rowid FROM search_map WHERE id = ? AND type = ?'),
-  searchUpdateTitle: db.prepare('UPDATE search_fts SET title = ? WHERE rowid = (SELECT rowid FROM search_map WHERE id = ? AND type = ?)'),
+  // Title update patches search_content (authoritative); the fts5 shadow row is
+  // patched via the external-content delete+reinsert protocol in updateSearchTitle().
+  searchUpdateTitle: db.prepare('UPDATE search_content SET title = ? WHERE rowid = (SELECT rowid FROM search_map WHERE id = ? AND type = ?)'),
+  searchDeleteContentByRowid: db.prepare('DELETE FROM search_content WHERE rowid = ?'),
   searchDeleteByRowid: db.prepare('DELETE FROM search_fts WHERE rowid = ?'),
   searchMapDeleteByRowid: db.prepare('DELETE FROM search_map WHERE rowid = ?'),
+  searchContentGet: db.prepare('SELECT title, body FROM search_content WHERE rowid = ?'),
+  // fts5 external-content 'delete' command: removes the shadow row by its old
+  // column values. Used before reinserting with an updated title.
+  searchFtsDeleteRow: db.prepare("INSERT INTO search_fts(search_fts, rowid, title, body) VALUES('delete', ?, ?, ?)"),
+  searchFtsInsertRow: db.prepare('INSERT INTO search_fts(rowid, title, body) VALUES(?, ?, ?)'),
   // Settings statements
   settingsGet: db.prepare('SELECT value FROM settings WHERE key = ?'),
   settingsUpsert: db.prepare(`
@@ -369,33 +436,51 @@ function setFolderMeta(folder, projectPath, indexMtimeMs) {
 
 const upsertSearchEntriesBatch = db.transaction((entries) => {
   for (const e of entries) {
-    // Delete any existing FTS row for this (id, type) pair before inserting.
-    // search_map uses INSERT OR REPLACE which deletes the old row and creates
-    // a new one with a new rowid, but the orphaned FTS5 row keyed to the old
-    // rowid would never be cleaned up — causing duplicate search results and
-    // unbounded FTS table growth.
+    // Delete any existing FTS + content rows for this (id, type) pair before
+    // inserting. search_map uses INSERT OR REPLACE which deletes the old row
+    // and creates a new one with a new rowid, but the orphaned search_fts and
+    // search_content rows keyed to the old rowid would never be cleaned up —
+    // causing duplicate search results and unbounded table growth.
     const existing = stmts.searchMapLookup.get(e.id, e.type);
     if (existing) {
       stmts.searchDeleteByRowid.run(existing.rowid);
+      stmts.searchDeleteContentByRowid.run(existing.rowid);
       stmts.searchMapDeleteByRowid.run(existing.rowid);
     }
     const result = stmts.searchInsertMap.run(e.id, e.type, e.folder || null);
-    stmts.searchInsertFts.run(result.lastInsertRowid, e.title || '', e.body || '');
+    const rid = result.lastInsertRowid;
+    const title = e.title || '';
+    // Truncate body to FTS_BODY_MAX_CHARS: bounds search_content size and keeps
+    // the fts5 index compact without sacrificing meaningful snippets.
+    const body = (e.body || '').slice(0, FTS_BODY_MAX_CHARS);
+    // External-content protocol: the search_content row must exist before the
+    // fts5 shadow row so fts5 can read columns for snippet() at insert.
+    stmts.searchInsertContent.run(rid, title, body);
+    stmts.searchInsertFts.run(rid, title, body);
   }
 });
 
 function deleteSearchSession(sessionId) {
+  // External-content FTS5 protocol: delete from search_fts FIRST while
+  // search_content rows still exist (SQLite reads search_content to locate the
+  // trigram entries to remove). search_map is deleted last because the rowid
+  // sub-select in the two DELETEs above still needs to resolve.
   stmts.searchDeleteBySession.run(sessionId);
+  stmts.searchDeleteContentBySession.run(sessionId);
   stmts.searchMapDeleteBySession.run(sessionId);
 }
 
 function deleteSearchFolder(folder) {
+  // Same external-content ordering: FTS delete before content delete.
   stmts.searchDeleteByFolder.run(folder);
+  stmts.searchDeleteContentByFolder.run(folder);
   stmts.searchMapDeleteByFolder.run(folder);
 }
 
 function deleteSearchType(type) {
+  // Same external-content ordering: FTS delete before content delete.
   stmts.searchDeleteByType.run(type);
+  stmts.searchDeleteContentByType.run(type);
   stmts.searchMapDeleteByType.run(type);
 }
 
@@ -404,8 +489,21 @@ function upsertSearchEntries(entries) {
 }
 
 function updateSearchTitle(id, type, title) {
+  // For an external-content fts5 table, updating search_content is the
+  // authoritative change (snippet() reads columns from there). The fts5 index
+  // is also patched: delete the old shadow row then re-insert with the new
+  // title so trigram search on title reflects the rename immediately.
   try {
+    const mapRow = stmts.searchMapLookup.get(id, type);
+    if (!mapRow) return;
+    const rid = mapRow.rowid;
+    const contentRow = stmts.searchContentGet.get(rid);
+    if (!contentRow) return;
+    // Update the content table first.
     stmts.searchUpdateTitle.run(title, id, type);
+    // Patch the fts5 index: external-content delete (old values) + reinsert.
+    stmts.searchFtsDeleteRow.run(rid, contentRow.title, contentRow.body);
+    stmts.searchFtsInsertRow.run(rid, title, contentRow.body);
   } catch {}
 }
 
