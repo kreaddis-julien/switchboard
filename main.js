@@ -11,6 +11,7 @@ const { appendToOutputBuffer, MAX_BUFFER_SIZE } = require('./output-buffer');
 // assigned in app.whenReady once the spawn deps exist.
 const profilesModule = require('./profiles');
 const sessionProfiles = require('./session-profiles');
+const { addAllowedRoot } = require('./path-guard');
 let orchModule = null;
 const { startMcpServer, shutdownMcpServer, shutdownAll: shutdownAllMcp, resolvePendingDiff, rekeyMcpServer, cleanStaleLockFiles } = require('./mcp-bridge');
 const { fetchAndTransformUsage } = require('./claude-auth');
@@ -697,7 +698,12 @@ ipcMain.handle('get-projects', async (_event, showArchived) => {
     // older build, so sessions/worktrees don't silently go missing. Stat-gated,
     // so it's cheap when nothing has changed.
     reconcileCacheFromFilesystem();
-    return buildProjectsFromCache(showArchived);
+    const projects = buildProjectsFromCache(showArchived);
+    // Seed the path-guard allowlist with every known project root so Agent
+    // Teams (orch:create-run / watch-projects) can operate on any project the
+    // sidebar shows. The guard otherwise starts empty -> "project not allowed".
+    for (const p of projects) { if (p && p.projectPath) { try { addAllowedRoot(p.projectPath); } catch {} } }
+    return projects;
   } catch (err) {
     console.error('Error listing projects:', err);
     return [];
