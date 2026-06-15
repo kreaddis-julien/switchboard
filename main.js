@@ -746,13 +746,15 @@ ipcMain.handle('get-plans', () => {
 
 // --- IPC: read-plan ---
 ipcMain.handle('read-plan', (_event, filename) => {
+  const filePath = path.join(PLANS_DIR, path.basename(filename));
   try {
-    const filePath = path.join(PLANS_DIR, path.basename(filename));
     const content = fs.readFileSync(filePath, 'utf8');
-    return { content, filePath };
+    return { ok: true, content, filePath };
   } catch (err) {
+    // Discriminated result so the renderer shows a read error instead of opening a
+    // blank editor that could then be SAVED over the file.
     console.error('Error reading plan:', err);
-    return { content: '', filePath: '' };
+    return { ok: false, error: err.message, filePath };
   }
 });
 
@@ -1082,14 +1084,15 @@ ipcMain.handle('get-memories', () => {
 
 // --- IPC: read-memory ---
 ipcMain.handle('read-memory', (_event, filePath) => {
+  const resolved = path.resolve(filePath);
+  if (!resolved.endsWith('.md')) return { ok: false, error: 'not a .md file' };
+  if (!isAllowedMemoryPath(resolved)) return { ok: false, error: 'path not allowed' };
   try {
-    const resolved = path.resolve(filePath);
-    if (!resolved.endsWith('.md')) return '';
-    if (!isAllowedMemoryPath(resolved)) return '';
-    return fs.readFileSync(resolved, 'utf8');
+    return { ok: true, content: fs.readFileSync(resolved, 'utf8') };
   } catch (err) {
+    // Discriminated result so a read error shows instead of a blank, saveable editor.
     console.error('Error reading memory file:', err);
-    return '';
+    return { ok: false, error: err.message };
   }
 });
 

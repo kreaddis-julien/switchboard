@@ -76,6 +76,11 @@ async function openPlan(plan) {
   });
 
   const result = await window.api.readPlan(plan.filename);
+  if (!result.ok) {
+    const sb = document.getElementById('status-bar-activity');
+    if (sb) sb.textContent = `Failed to read plan: ${result.error || 'unknown error'}`;
+    return; // don't open a blank editor that could be saved over the file
+  }
   currentPlanContent = result.content;
   currentPlanFilePath = result.filePath;
   currentPlanFilename = plan.filename;
@@ -263,7 +268,13 @@ async function openMemory(file) {
   const target = memoryContent.querySelector(`.memory-item[data-filepath="${CSS.escape(file.filePath)}"]`);
   if (target) target.classList.add('active');
 
-  const content = await window.api.readMemory(file.filePath);
+  const result = await window.api.readMemory(file.filePath);
+  if (!result.ok) {
+    const sb = document.getElementById('status-bar-activity');
+    if (sb) sb.textContent = `Failed to read file: ${result.error || 'unknown error'}`;
+    return; // don't open a blank editor that could be saved over the file
+  }
+  const content = result.content;
   currentMemoryFilePath = file.filePath;
   currentMemoryContent = content;
 
