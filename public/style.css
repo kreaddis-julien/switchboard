@@ -1313,6 +1313,7 @@ body { display: flex; flex-direction: column; }
 .session-actions .session-fork-btn,
 .session-actions .session-jsonl-btn,
 .session-actions .session-tags-btn,
+.session-actions .session-pin-btn,
 .session-actions .session-archive-btn {
   cursor: pointer;
   background: none;
@@ -1333,6 +1334,8 @@ body { display: flex; flex-direction: column; }
 .session-fork-btn:hover .session-menu-label,
 .session-jsonl-btn:hover .session-menu-label,
 .session-archive-btn:hover .session-menu-label { color: inherit; }
+.session-pin-btn:hover .session-menu-label { color: inherit; }
+.session-actions .session-pin-btn svg { color: var(--amber); }
 
 .session-resume-btn {
   color: var(--ok);
