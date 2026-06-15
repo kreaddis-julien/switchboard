@@ -1,18 +1,46 @@
 const fs = require('fs');
 const path = require('path');
 
-function extractCwdFromJsonl(filePath) {
-  try {
-    const lines = fs.readFileSync(filePath, 'utf8').split('\n');
-    for (const line of lines) {
-      if (!line) continue;
-      try {
-        const parsed = JSON.parse(line);
-        if (parsed.cwd) return parsed.cwd;
-      } catch {}
-    }
-  } catch {}
+// cwd sits in the first lines, but the leading line(s) (queue-operation /
+// attachment entries with pasted content) can be tens of KB, so read a generous
+// head rather than just line 1. Fall back to a full read only if the head has no
+// cwd (rare), so we never regress from "slow but correct" to "fast but wrong".
+const CWD_HEAD_CAP = 256 * 1024;
+
+function parseCwdFromText(text) {
+  for (const line of text.split('\n')) {
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line);
+      if (parsed.cwd) return parsed.cwd;
+    } catch {}
+  }
   return null;
+}
+
+function extractCwdFromJsonl(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const size = fs.fstatSync(fd).size;
+    const readLen = Math.min(size, CWD_HEAD_CAP);
+    const buf = Buffer.alloc(readLen);
+    fs.readSync(fd, buf, 0, readLen, 0);
+    let text = buf.toString('utf8');
+    // Drop a partial last line if we capped before EOF (JSON.parse would throw on it).
+    if (size > readLen) {
+      const lastNl = text.lastIndexOf('\n');
+      if (lastNl !== -1) text = text.slice(0, lastNl);
+    }
+    const cwd = parseCwdFromText(text);
+    if (cwd) return cwd;
+    if (size > readLen) return parseCwdFromText(fs.readFileSync(filePath, 'utf8'));
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
+  }
 }
 
 function resolveWorktreePath(cwd) {
