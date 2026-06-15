@@ -944,17 +944,20 @@ function buildSessionItem(session) {
     : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707c-.28-.28-.576-.49-.888-.656L10.073 9.333l-.07 3.181a.5.5 0 0 1-.853.354l-3.535-3.536-4.243 4.243a.5.5 0 1 1-.707-.707l4.243-4.243L1.372 5.11a.5.5 0 0 1 .354-.854l3.18-.07L8.37.722A3.37 3.37 0 0 1 9.12.074a.5.5 0 0 1 .708.002l-.707.707z"/></svg>')
     + '<span class="session-menu-label">' + (session.starred ? 'Unpin' : 'Pin') + '</span>';
 
-  actions.appendChild(pinMenuBtn);
+  // Ordre logique : ouvrir -> deriver/inspecter -> organiser -> archiver.
   if (session.type !== 'terminal') {
     actions.appendChild(resumeBtn);
   }
-  // Stop visible uniquement si la session tourne (sinon ca n'a pas de sens).
+  // Stop visible uniquement si la session tourne (counterpart de Resume).
   if (activePtyIds.has(session.sessionId)) actions.appendChild(stopBtn);
   if (session.type !== 'terminal') {
-    actions.appendChild(forkBtn);
-    actions.appendChild(jsonlBtn);
-    actions.appendChild(archiveBtn);
-    actions.appendChild(launchConfigBtn);
+    actions.appendChild(launchConfigBtn);   // Resume with config
+    actions.appendChild(forkBtn);           // Fork
+    actions.appendChild(jsonlBtn);          // View messages
+  }
+  actions.appendChild(pinMenuBtn);          // Pin (Tags sera insere juste apres par bookmarks-tags)
+  if (session.type !== 'terminal') {
+    actions.appendChild(archiveBtn);        // Archive (en dernier)
   }
   actions.classList.add('session-menu');
 
