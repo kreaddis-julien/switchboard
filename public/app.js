@@ -1023,7 +1023,7 @@ async function showTerminalHeader(session) {
     actions.id = 'terminal-header-actions';
     actions.innerHTML =
       '<button class="th-act" data-act="messages" title="Voir les messages"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></button>' +
-      '<button class="th-act" data-act="fork" title="Fork la session"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5m13 13h5v-5M8 21H3v-5"/></svg></button>';
+      '<button class="th-act" data-act="fork" title="Fork (nouvelle session branchee depuis celle-ci)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><path d="M12 12v3"/></svg></button>';
     stopBtn.parentElement.insertBefore(actions, stopBtn);
   }
   if (actions) {
