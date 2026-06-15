@@ -275,3 +275,26 @@ test('approved task nudges the idle master once, batched', async () => {
     watcher.dispose();
   }
 });
+
+test('chunk in_progress is never recovered as worker-died (chunks carry no worker session)', async () => {
+  const project = tmpProject();
+  const run = makeActiveRun(project);
+  // Master sets the chunk to in_progress while its single leaf runs. The chunk
+  // has no worker session; liveness recovery must skip it (regression: it was
+  // flagged worker-died -> failed). The live leaf must also be left alone.
+  proto.writeTask(project, run.id, { id: 'C-1', title: 'chunk', status: 'in_progress', kind: 'chunk' });
+  proto.writeTask(project, run.id, { id: 'T-1', title: 'leaf', status: 'in_progress', kind: 'leaf', parent: 'C-1', sessionIds: ['leaf-sid'] });
+
+  const watcher = new OrchWatcher();
+  const { deps, activeSessions } = makeHarness();
+  activeSessions.add('leaf-sid'); // the leaf's worker is alive
+
+  const spawner = new OrchSpawner({ watcher, deps, staleGraceMs: 0 });
+  try {
+    watcher.watchProject(project);
+    await spawner.reconcile(project); // records stale-since (grace 0)
+    await spawner.reconcile(project); // past grace -> would act
+    assert.equal(proto.readTask(project, run.id, 'C-1').status, 'in_progress'); // chunk untouched
+    assert.equal(proto.readTask(project, run.id, 'T-1').status, 'in_progress'); // live leaf untouched
+  } finally { spawner.stop?.(); watcher.dispose(); }
+});

@@ -267,6 +267,10 @@ class OrchSpawner {
         key = `${projectPath}|${run.id}|${task.id}|reviewing|${round}`;
         rec = { to: 'needs_review', patch: { pendingLenses: [] }, event: 'review-stuck' };
       } else {
+        // Chunks/epics carry no worker session — the master sets a chunk to
+        // in_progress while its leaves run. Liveness recovery (worker-died)
+        // applies only to leaf tasks; a chunk is never "stuck" on a dead worker.
+        if ((task.kind || 'leaf') !== 'leaf') continue;
         rec = RECOVERY[task.status];
         if (!rec) continue;
         sid = task.pendingSessionId || (task.sessionIds || []).slice(-1)[0];

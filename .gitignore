@@ -9,3 +9,7 @@ public/codemirror-bundle.js
 .env
 .cache/
 dev-app-update.yml
+
+# Agent Teams (Switchboard orchestration) — run state + installed agent-pack (per-machine artifacts)
+.switchboard/
+.claude/commands/sb-*.md
