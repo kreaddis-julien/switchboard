@@ -2,8 +2,6 @@
 
 **Your command center for Claude Code sessions** — a unified view of every Claude Code session across all your projects. Launch, resume, fork, and monitor sessions from a single window, no more juggling terminal tabs or digging through `~/.claude/projects`.
 
-![Switchboard](build/screenshot.png)
-
 > **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) with extra theming/UI work and a curated set of upstream PRs merged in. There are **no prebuilt releases** for this fork — you [build it from source](#install-build-from-source) (it takes a couple of minutes). Auto-update is intentionally disabled so a local build is never overwritten by an upstream release.
 
 ## Contents
@@ -110,23 +108,17 @@ For Windows/Linux, see [Building](#building).
 
 Toggle the grid for a bird's-eye view of all open sessions at once, grouped by project.
 
-![Session Grid Overview](build/screenshot-grid.png)
-
 Every open session renders its full terminal in a card, with a running/busy/stopped dot and last-activity time — monitor several Claude agents simultaneously. Click a card header to focus it, double-click to expand to single-terminal view. The preference persists across restarts.
 
 ### IDE emulation & file preview
 
 When enabled, Claude's file opens and proposed edits appear in a side panel instead of going to an external editor.
 
-![IDE Emulation](build/screenshot-ide.png)
-
 Review diffs inline or side-by-side, accept/reject individual chunks, and open OSC 8 file links with syntax highlighting. Disable **IDE Emulation** in Settings to let Claude use your own editor (VS Code, Cursor, …) instead — applies to new sessions.
 
 ### Status notifications
 
 Switchboard watches every session in the background and surfaces status in the sidebar so you can tell at a glance which one needs you — even from another session.
-
-![Status Notifications](build/screenshot-notifications.png)
 
 Highlights sessions waiting for input or blocked on a permission grant, and shows which are running, idle, or finished. Pairs with the sound + system notifications this fork adds.
 
