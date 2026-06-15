@@ -130,12 +130,14 @@ function wrapInGridCard(sessionId) {
   });
 
   gridCards.set(sessionId, card);
+  if (gridCardObserver) gridCardObserver.observe(card);
   // Set initial status from the single source of truth
   updateRunningIndicators();
 }
 
 function unwrapGridCards() {
   for (const [sid, card] of gridCards) {
+    if (gridCardObserver) gridCardObserver.unobserve(card);
     const entry = openSessions.get(sid);
     if (entry) {
       entry.element.classList.remove('grid-mode', 'visible');
@@ -269,10 +271,42 @@ function updateGridColumns() {
   terminalsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 }
 
+// Virtualize WebGL on grid cards: only on-screen cards keep a GL context.
+// Off-screen cards drop to xterm's DOM renderer (suspendTerminalWebgl) and get
+// the context back when scrolled into view. Frees GPU memory and keeps the
+// total context count under Chromium's ~16-per-process cap on large grids.
+let gridCardObserver = null;
+
+// Remove a session's grid card and release its observer registration. Called
+// from destroySession (terminal-manager.js) — without the unobserve, the
+// IntersectionObserver keeps a strong ref to the detached card node, leaking
+// one element per LRU eviction while the grid stays open.
+function destroyGridCard(sessionId) {
+  const card = gridCards.get(sessionId);
+  if (!card) return false;
+  if (gridCardObserver) gridCardObserver.unobserve(card);
+  card.remove();
+  gridCards.delete(sessionId);
+  return true;
+}
+
 // initGridObservers is called from app.js after DOM refs are ready
 function initGridObservers() {
   new ResizeObserver(updateGridColumns).observe(terminalsEl);
   new MutationObserver(updateGridColumns).observe(terminalsEl, { childList: true });
+  if (typeof IntersectionObserver !== 'undefined') {
+    gridCardObserver = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const sid = e.target.dataset.sessionId;
+        if (!sid) continue;
+        if (e.isIntersecting) {
+          restoreTerminalWebgl(sid);
+        } else {
+          suspendTerminalWebgl(sid);
+        }
+      }
+    }, { threshold: 0 });
+  }
 }
 
 function hideGridView() {
