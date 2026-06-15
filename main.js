@@ -1202,7 +1202,7 @@ ipcMain.handle('toggle-star', (_event, sessionId) => {
 
 // --- IPC: rename-session ---
 ipcMain.handle('rename-session', (_event, sessionId, name) => {
-  setName(sessionId, name || null);
+  setName(sessionId, name || null, 'user'); // UI rename — protected from JSONL custom-title clobber
   // Update search index title to include the new name
   const cached = getCachedSession(sessionId);
   const summary = cached?.summary || '';
@@ -1357,6 +1357,7 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
 
   let ptyProcess;
   let mcpServer = null;
+  let mcpStartError = null;
   try {
     if (isPlainTerminal) {
       // Plain terminal: interactive login shell, no claude command
@@ -1441,6 +1442,7 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
           claudeCmd += ' --ide';
         } catch (err) {
           log.error(`[mcp] Failed to start MCP server for ${sessionId}: ${err.message}`);
+          mcpStartError = err.message;
         }
       }
 
@@ -1605,7 +1607,7 @@ ipcMain.handle('open-terminal', async (_event, sessionId, projectPath, isNew, se
     log.info(`[fork-spawn] tempId=${sessionId} forkFrom=${sessionOptions.forkFrom} folder=${projectFolder} knownFiles=${knownJsonlFiles.size}`);
   }
 
-  return { ok: true, reattached: false, mcpActive: !!mcpServer };
+  return { ok: true, reattached: false, mcpActive: !!mcpServer, mcpError: mcpStartError };
 });
 
 // --- IPC: terminal-input (fire-and-forget) ---
@@ -1896,12 +1898,22 @@ app.whenReady().then(() => {
     child.on('exit', (code) => {
       if (stderr.trim()) log.error(`[schedule] ${name} stderr:\n${stderr.trim()}`);
       log.info(`[schedule] ${name} finished (exit ${code})`);
-      if (onDone) onDone();
+      if (code !== 0) {
+        // Cron/run-now children aren't tracked in activeSessions, so use the
+        // low-level OS notification + a renderer status line rather than the
+        // session-keyed notify wrappers (which would no-op).
+        const detail = stderr.trim().split('\n').pop() || `exit ${code}`;
+        showOsNotification(`Scheduled task "${name}" failed: ${detail}`);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('status-update', `Scheduled task "${name}" failed (exit ${code})`, 'error');
+      }
+      if (onDone) onDone(code);
     });
 
     child.on('error', (err) => {
       log.error(`[schedule] ${name} error:`, err.message);
-      if (onDone) onDone();
+      showOsNotification(`Scheduled task "${name}" failed: ${err.message}`);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('status-update', `Scheduled task "${name}" failed: ${err.message}`, 'error');
+      if (onDone) onDone(-1);
     });
   }
 

@@ -420,6 +420,14 @@ window.api.onSessionForked((oldId, newId) => {
   sessionMap.delete(oldId);
   sessionMap.set(newId, entry.session);
 
+  // Migrate per-session status/activity maps (not re-keyed above) so the old temp
+  // id doesn't leak and the forked session keeps its busy/attention/activity state.
+  for (const set of [attentionSessions, responseReadySessions]) {
+    if (set.has(oldId)) { set.delete(oldId); set.add(newId); }
+  }
+  if (sessionBusyState.has(oldId)) { sessionBusyState.set(newId, sessionBusyState.get(oldId)); sessionBusyState.delete(oldId); }
+  if (lastActivityTime.has(oldId)) { lastActivityTime.set(newId, lastActivityTime.get(oldId)); lastActivityTime.delete(oldId); }
+
   terminalHeaderId.textContent = newId;
 
   loadProjects().then(() => {
@@ -959,6 +967,7 @@ async function launchNewSession(project, sessionOptions) {
     return;
   }
   if (typeof setSessionMcpActive === 'function') setSessionMcpActive(sessionId, !!result.mcpActive);
+  if (result.mcpError) entry.terminal.write(`\r\n\x1b[33m[Switchboard] IDE emulation unavailable: ${result.mcpError}\x1b[0m\r\n`);
 
   showSession(sessionId);
   pollActiveSessions();
@@ -1030,6 +1039,7 @@ async function openSession(session, customOptions) {
     return;
   }
   if (typeof setSessionMcpActive === 'function') setSessionMcpActive(sessionId, !!result.mcpActive);
+  if (result.mcpError) entry.terminal.write(`\r\n\x1b[33m[Switchboard] IDE emulation unavailable: ${result.mcpError}\x1b[0m\r\n`);
 
   showSession(sessionId);
   pollActiveSessions();

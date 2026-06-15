@@ -311,6 +311,12 @@ function destroySession(sessionId) {
   openSessions.delete(sessionId);
   const card = gridCards.get(sessionId);
   if (card) { card.remove(); gridCards.delete(sessionId); }
+  // Prune per-session status/activity maps (declared in app.js, shared classic-script
+  // scope) so they don't accumulate for the renderer's whole lifetime.
+  attentionSessions.delete(sessionId);
+  responseReadySessions.delete(sessionId);
+  sessionBusyState.delete(sessionId);
+  lastActivityTime.delete(sessionId);
 }
 
 // Make a session visible in the current view mode (grid or single).

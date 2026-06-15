@@ -72,6 +72,7 @@ async function launchScheduleCreator(project) {
     return;
   }
   if (typeof setSessionMcpActive === 'function') setSessionMcpActive(result.sessionId, !!openResult.mcpActive);
+  if (openResult.mcpError) entry.terminal.write(`\r\n\x1b[33m[Switchboard] IDE emulation unavailable: ${openResult.mcpError}\x1b[0m\r\n`);
   showSession(result.sessionId);
   pollActiveSessions();
 }
