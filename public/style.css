@@ -1199,9 +1199,9 @@ body { display: flex; flex-direction: column; }
 }
 /* Le compteur de sessions reste visible au survol (le menu "..." apparait a cote). */
 
-/* Pin : masquee si non epinglee (colonne preservee), revelee au survol */
+/* Pin : l'epingle n'est qu'un INDICATEUR (visible si epinglee). Le pin/unpin se fait
+   via le menu "..." (plus d'icone cliquable au survol). */
 .session-item .session-pin:not(.pinned) { visibility: hidden; }
-.session-item:hover .session-pin:not(.pinned) { visibility: visible; }
 
 /* Header : breadcrumb projet/session + chips meta (modele / branche / contexte) */
 #terminal-header-name .th-proj { color: var(--c-808098); font-weight: 500; }
