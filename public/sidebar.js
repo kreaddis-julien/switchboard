@@ -14,6 +14,17 @@
 // Map<parentSessionId, [subagent session, ...]> rebuilt on each renderProjects.
 let _subagentsByParent = new Map();
 
+// The parent row a session should nest under instead of being shown as a peer:
+//   - subagent transcripts (sub:<parent>:<id>) -> their parent session
+//   - Agent Teams worker/reviewer sessions (orchParent set by main) -> the run master
+// Returns null for top-level sessions.
+function nestParentOf(s) {
+  if (!s || !s.sessionId) return null;
+  if (s.sessionId.startsWith('sub:') && s.parentSessionId) return s.parentSessionId;
+  if (s.orchParent) return s.orchParent;
+  return null;
+}
+
 // A session counts as "running/live" iff its PTY is active (backend), OR it was
 // just launched/forked and still has an OPEN, non-closed terminal entry (the race
 // window before the PTY shows up in activePtyIds). Important: a session can sit in
@@ -155,9 +166,10 @@ function renderProjects(projects, resort) {
   _subagentsByParent = new Map();
   for (const project of projects) {
     for (const s of (project.sessions || [])) {
-      if (s.sessionId && s.sessionId.startsWith('sub:') && s.parentSessionId) {
-        if (!_subagentsByParent.has(s.parentSessionId)) _subagentsByParent.set(s.parentSessionId, []);
-        _subagentsByParent.get(s.parentSessionId).push(s);
+      const parent = nestParentOf(s);
+      if (parent) {
+        if (!_subagentsByParent.has(parent)) _subagentsByParent.set(parent, []);
+        _subagentsByParent.get(parent).push(s);
       }
     }
   }
@@ -200,7 +212,7 @@ function renderProjects(projects, resort) {
   function processProjectSessions(project, resort) {
     // Subagent sessions are nested under their parent (see buildSessionItem), not
     // listed as peers — drop them from the main list before grouping.
-    let filtered = project.sessions.filter(s => !(s.sessionId && s.sessionId.startsWith('sub:')));
+    let filtered = project.sessions.filter(s => !nestParentOf(s));
     if (showStarredOnly) filtered = filtered.filter(s => s.starred);
     if (showRunningOnly) filtered = filtered.filter(s => isSessionLive(s.sessionId));
     if (showTodayOnly) {
@@ -351,7 +363,7 @@ function renderProjects(projects, resort) {
     const _np = shortName.split('/');
     const _leaf = _np.pop();
     const _prefix = _np.length ? _np.join('/') + '/' : '';
-    const _count = (project.sessions || []).filter(s => !(s.sessionId && s.sessionId.startsWith('sub:'))).length;
+    const _count = (project.sessions || []).filter(s => !nestParentOf(s)).length;
     header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${_prefix ? `<span class="project-path">${escapeHtml(_prefix)}</span>` : ''}${escapeHtml(_leaf)}</span>${_count ? `<span class="project-count">${_count}</span>` : ''}`;
 
     // Project actions live behind a "⋯" menu (mirrors the session actions menu):

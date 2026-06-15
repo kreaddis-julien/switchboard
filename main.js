@@ -702,7 +702,17 @@ ipcMain.handle('get-projects', async (_event, showArchived) => {
     // Seed the path-guard allowlist with every known project root so Agent
     // Teams (orch:create-run / watch-projects) can operate on any project the
     // sidebar shows. The guard otherwise starts empty -> "project not allowed".
-    for (const p of projects) { if (p && p.projectPath) { try { addAllowedRoot(p.projectPath); } catch {} } }
+    // Also annotate orch worker/reviewer sessions with their run's master id
+    // (s.orchParent) so the sidebar nests them under the master row.
+    const orchProto = require('./orch-protocol');
+    for (const p of projects) {
+      if (!p || !p.projectPath) continue;
+      try { addAllowedRoot(p.projectPath); } catch {}
+      try {
+        const masters = orchProto.sessionMasters(p.projectPath);
+        for (const s of (p.sessions || [])) { const m = masters[s.sessionId]; if (m) s.orchParent = m; }
+      } catch {}
+    }
     return projects;
   } catch (err) {
     console.error('Error listing projects:', err);

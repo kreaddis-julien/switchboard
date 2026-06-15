@@ -402,6 +402,26 @@ function listRunIds(projectPath) {
   } catch { return []; }
 }
 
+// Map every orchestrated worker/reviewer session id to its run's master session
+// id, so the sidebar can nest team sessions under the master row. Read-only scan
+// of <project>/.switchboard/runs; returns {} when the project has no runs.
+function sessionMasters(projectPath) {
+  const map = {};
+  for (const runId of listRunIds(projectPath)) {
+    const run = readRun(projectPath, runId);
+    const master = run && run.masterSessionId;
+    if (!master) continue;
+    let detailed;
+    try { detailed = readTasksDetailed(projectPath, runId); } catch { continue; }
+    for (const t of (detailed.tasks || [])) {
+      for (const sid of [...(t.sessionIds || []), ...(t.reviewSessionIds || [])]) {
+        if (sid && sid !== master) map[sid] = master;
+      }
+    }
+  }
+  return map;
+}
+
 function readRun(projectPath, runId) {
   if (!RUN_ID_RE.test(runId || '')) return null;
   const run = readJsonSafe(path.join(runDir(projectPath, runId), 'run.json'));
@@ -692,7 +712,7 @@ module.exports = {
   COMPLEXITIES, DEFAULT_COMPLEXITY, resolveProfile, tierCap, taskComplexity,
   REVIEW_LENSES, LENS_KEYS, DEFAULT_LENSES_BY_COMPLEXITY, resolveLenses, lensQuorum, parseVerdict,
   reviewOutcome, VETO_LENSES, isSafeValidateCmd,
-  listRunIds, readRun, readTasks, readTasksDetailed, readTask, readEvents,
+  listRunIds, readRun, readTasks, readTasksDetailed, readTask, readEvents, sessionMasters,
   writeRun, writeTask, appendEvent,
   isTransitionAllowed, transitionTask,
   createRun, newRunId, slugify,
