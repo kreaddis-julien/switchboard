@@ -103,11 +103,37 @@ function isAtBottom(terminal) {
   return buf.viewportY >= buf.baseY;
 }
 
-// Fit terminal to container, subtracting 1 row to avoid partial-row clipping.
+// Pure helper: clamp a FitAddon-proposed row count to what the container's
+// content-box height can actually display.
+//
+// xterm's FitAddon.proposeDimensions() reads getComputedStyle(container).height
+// (the .terminal-container border-box) and subtracts only the .xterm element's
+// OWN padding (0 here). Under the global `* { box-sizing: border-box }` rule the
+// computed height already includes the container's 8px top + 8px bottom padding,
+// so those 16px are counted as drawable area: 1-2 extra rows are proposed and
+// the bottom is clipped by overflow:hidden. Clamp to the true content box.
+function clampRowsToContentBox(proposedRows, clientHeight, verticalPadding, cellHeight) {
+  if (cellHeight <= 0) return proposedRows;
+  const maxRows = Math.max(1, Math.floor((clientHeight - verticalPadding) / cellHeight));
+  return Math.min(proposedRows, maxRows);
+}
+
+// Fit terminal to container, clamping rows to the container's true content-box
+// height to avoid bottom-row clipping (see clampRowsToContentBox above).
 function safeFit(entry) {
   const dims = entry.fitAddon.proposeDimensions();
   if (dims && dims.rows > 1) {
-    entry.terminal.resize(dims.cols, dims.rows);
+    const el = entry.element; // .terminal-container
+    const cs = getComputedStyle(el);
+    const padV = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    // Prefer the private xterm render-service path (same source FitAddon uses);
+    // fall back to measuring the first row element, then skip the clamp.
+    const cellH =
+      entry.terminal._core?._renderService?.dimensions?.css?.cell?.height ||
+      el.querySelector('.xterm-rows')?.firstElementChild?.getBoundingClientRect().height ||
+      0;
+    const clampedRows = clampRowsToContentBox(dims.rows, el.clientHeight, padV, cellH);
+    entry.terminal.resize(dims.cols, clampedRows);
   } else {
     entry.fitAddon.fit();
   }
@@ -145,6 +171,12 @@ const ESC_SYNC_END = '\x1b[?2026l';
 const SYNC_BUFFER_TIMEOUT = 500; // max ms to hold data waiting for sync end
 const terminalWriteBuffers = new Map(); // sessionId → { chunks, syncDepth, rafId, timerId }
 
+// ~30 fps flush cap — halves paint/compositor work vs. 60 fps during streaming.
+// Measured: compositor burns 40-60% of a core at 60 fps; 33 ms doubles parse-batch
+// size and is imperceptible for streaming text (worst-case added latency: 33 ms).
+const MIN_FLUSH_INTERVAL_MS = 33; // ~30 fps
+const lastFlushAt = new Map(); // sessionId → performance.now() of last flush
+
 function flushTerminalBuffer(sessionId) {
   const buf = terminalWriteBuffers.get(sessionId);
   if (!buf) return;
@@ -156,6 +188,7 @@ function flushTerminalBuffer(sessionId) {
   if (!entry) return;
 
   const data = buf.chunks.join('');
+  lastFlushAt.set(sessionId, performance.now());
   const wasAtBottom = isAtBottom(entry.terminal);
   const savedViewportY = entry.terminal.buffer.active.viewportY;
   entry.terminal.write(data, () => {
@@ -170,15 +203,76 @@ function flushTerminalBuffer(sessionId) {
 }
 
 function scheduleFlush(sessionId, buf) {
-  cancelAnimationFrame(buf.rafId);
-  buf.rafId = requestAnimationFrame(() => flushTerminalBuffer(sessionId));
+  // If a timer or rAF is already pending, don't stack another.
+  if (buf.timerId || buf.rafId) return;
+
+  const last = lastFlushAt.get(sessionId);
+  const elapsed = last === undefined ? Infinity : performance.now() - last;
+  if (elapsed >= MIN_FLUSH_INTERVAL_MS) {
+    // Enough time has passed — flush on the next animation frame (current behavior).
+    buf.rafId = requestAnimationFrame(() => flushTerminalBuffer(sessionId));
+  } else {
+    // Too soon — schedule a timer for the remaining interval, then rAF from there.
+    // Reuses buf.timerId so destroySession/flushTerminalBuffer teardown works unchanged.
+    const remaining = MIN_FLUSH_INTERVAL_MS - elapsed;
+    buf.timerId = setTimeout(() => {
+      buf.timerId = 0;
+      buf.rafId = requestAnimationFrame(() => flushTerminalBuffer(sessionId));
+    }, remaining);
+  }
+}
+
+// Entry point for PTY data (wired to window.api.onTerminalData in app.js).
+// Lives here rather than app.js so the sync-block/flush interplay runs under
+// the jsdom test harness — the frozen-terminal bug shipped because this logic
+// sat in untestable app.js.
+function handleTerminalData(sessionId, data) {
+  const entry = openSessions.get(sessionId);
+  if (entry) {
+    let buf = terminalWriteBuffers.get(sessionId);
+    if (!buf) {
+      buf = { chunks: [], syncDepth: 0, rafId: 0, timerId: 0 };
+      terminalWriteBuffers.set(sessionId, buf);
+    }
+    buf.chunks.push(data);
+
+    // Track sync start/end nesting
+    if (data.includes(ESC_SYNC_START)) buf.syncDepth++;
+    if (data.includes(ESC_SYNC_END)) buf.syncDepth = Math.max(0, buf.syncDepth - 1);
+
+    if (buf.syncDepth > 0) {
+      // Inside a synchronized update — keep buffering.
+      // Set a safety timeout so we never hold data forever.
+      cancelAnimationFrame(buf.rafId);
+      // Must zero rafId: scheduleFlush early-returns on a truthy rafId, so a
+      // stale id here would permanently block every future flush (frozen
+      // terminal) once the sync block closes.
+      buf.rafId = 0;
+      if (!buf.timerId) {
+        buf.timerId = setTimeout(() => flushTerminalBuffer(sessionId), SYNC_BUFFER_TIMEOUT);
+      }
+    } else {
+      // Not in a sync block (or sync just ended) — flush on next frame.
+      clearTimeout(buf.timerId);
+      buf.timerId = 0;
+      scheduleFlush(sessionId, buf);
+    }
+  }
+  // Update last activity time (noise-filtered)
+  trackActivity(sessionId, data);
 }
 
 // --- Terminal lifecycle helpers ---
 
+// Scrollback budget per view mode. A 10k-row buffer costs ~3 MB per terminal;
+// grid cards are thumbnails and only need enough rows for context. showSession
+// and showGridView switch the live value when the view mode changes.
+const SCROLLBACK_SINGLE = 10000; // focused single-view terminal
+const SCROLLBACK_GRID = 1000;    // grid card (thumbnail)
+
 // Create an xterm instance, wire up IPC, and register in openSessions.
 // Returns the entry. Does NOT make it visible or fit it — call showSession() for that.
-function createTerminalEntry(session) {
+function createTerminalEntry(session, opts = {}) {
   const { sessionId } = session;
   const container = document.createElement('div');
   container.className = 'terminal-container';
@@ -189,7 +283,7 @@ function createTerminalEntry(session) {
     fontFamily: "'Geist Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
     theme: TERMINAL_THEME,
     cursorBlink: false,
-    scrollback: 10000,
+    scrollback: opts.scrollback ?? (gridViewActive ? SCROLLBACK_GRID : SCROLLBACK_SINGLE),
     convertEol: true,
     allowProposedApi: true,
     linkHandler: {
@@ -306,6 +400,16 @@ function destroySession(sessionId) {
   const entry = openSessions.get(sessionId);
   if (!entry) return;
   window.api.closeTerminal(sessionId);
+  // Drop any pending write buffer before disposing — a scheduled rAF/timeout
+  // flush would otherwise call terminal.write() on a disposed instance if
+  // terminal-data IPC raced with the teardown.
+  const buf = terminalWriteBuffers.get(sessionId);
+  if (buf) {
+    cancelAnimationFrame(buf.rafId);
+    clearTimeout(buf.timerId);
+    terminalWriteBuffers.delete(sessionId);
+  }
+  lastFlushAt.delete(sessionId);
   entry.terminal.dispose();
   entry.element.remove();
   openSessions.delete(sessionId);
@@ -354,6 +458,9 @@ function showSession(sessionId) {
     hidePlanViewer();
     if (session) showTerminalHeader(session);
     if (entry) {
+      // Restore the full scrollback budget for the focused terminal (the grid
+      // may have trimmed it — see showGridView). Growing the limit is lossless.
+      entry.terminal.options.scrollback = SCROLLBACK_SINGLE;
       entry.element.classList.add('visible');
       entry.terminal.focus();
       fitAndScroll(entry);
