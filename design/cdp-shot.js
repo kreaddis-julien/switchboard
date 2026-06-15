@@ -32,16 +32,21 @@ function getTargets() {
     await send('Page.enable');
     await send('Runtime.enable');
     // forcer une taille de fenetre coherente pour la capture
-    await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 2, mobile: false });
+    await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: parseInt(process.env.SB_SCALE||'1',10), mobile: false });
     // pilotage optionnel du DOM avant capture (ex: forcer le theme, selectionner une session)
     if (process.env.SB_EVAL) {
       await send('Runtime.evaluate', { expression: process.env.SB_EVAL, awaitPromise: true });
       await new Promise(r => setTimeout(r, parseInt(process.env.SB_WAIT || '400', 10)));
     }
+    if (process.env.SB_HOVER) {
+      const [hx, hy] = process.env.SB_HOVER.split(',').map(Number);
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hx, y: hy, buttons: 0 });
+      await new Promise(r => setTimeout(r, 280));
+    }
     const shotParams = { format: 'png', captureBeyondViewport: false };
     if (process.env.SB_CLIP) {
       const [x, y, w, h] = process.env.SB_CLIP.split(',').map(Number);
-      shotParams.clip = { x, y, width: w, height: h, scale: 2 };
+      shotParams.clip = { x, y, width: w, height: h, scale: parseInt(process.env.SB_SCALE||'1',10) };
     }
     const r = await send('Page.captureScreenshot', shotParams);
     if (!r || !r.data) { console.error('no screenshot data'); process.exit(1); }
