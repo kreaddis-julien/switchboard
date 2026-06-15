@@ -14,15 +14,33 @@
 // Map<parentSessionId, [subagent session, ...]> rebuilt on each renderProjects.
 let _subagentsByParent = new Map();
 
-// Close any open session action menu ("..." dropdown) on an outside click.
+// A session counts as "running/live" iff its PTY is active (backend), OR it was
+// just launched/forked and still has an OPEN, non-closed terminal entry (the race
+// window before the PTY shows up in activePtyIds). Important: a session can sit in
+// pendingSessions WITHOUT a live terminal entry — e.g. a stopped plain terminal
+// re-added by loadProjects' getActiveTerminals while the backend briefly still
+// reports it. `pendingSessions.has(id)` alone (or `!openSessions.get(id)?.closed`,
+// which is true when the entry is undefined) wrongly treats those as running and
+// makes stopped sessions reappear under the "running only" filter. Requiring the
+// open, non-closed entry fixes that.
+function isSessionLive(id) {
+  if (activePtyIds.has(id)) return true;
+  if (!pendingSessions.has(id)) return false;
+  const entry = openSessions.get(id);
+  return !!entry && !entry.closed;
+}
+
+// Close any open session/project action menu ("..." dropdown) on an outside click.
 document.addEventListener('click', (e) => {
-  if (e.target.closest && (e.target.closest('.session-menu-btn') || e.target.closest('.session-menu'))) return;
-  document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+  const inSession = e.target.closest && (e.target.closest('.session-menu-btn') || e.target.closest('.session-menu'));
+  const inProject = e.target.closest && (e.target.closest('.project-menu-btn') || e.target.closest('.project-actions'));
+  if (!inSession) document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+  if (!inProject) document.querySelectorAll('.project-header.menu-open').forEach(el => el.classList.remove('menu-open'));
 });
-// The menu is position:fixed (positioned once on open), so close it on scroll/
-// resize rather than let it detach from its button.
+// The menus are position:fixed (positioned once on open), so close them on scroll/
+// resize rather than let them detach from their button.
 ['scroll', 'resize'].forEach(ev => window.addEventListener(ev, () => {
-  document.querySelectorAll('.session-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+  document.querySelectorAll('.session-item.menu-open, .project-header.menu-open').forEach(el => el.classList.remove('menu-open'));
 }, true));
 
 function slugId(slug) {
@@ -184,10 +202,7 @@ function renderProjects(projects, resort) {
     // listed as peers — drop them from the main list before grouping.
     let filtered = project.sessions.filter(s => !(s.sessionId && s.sessionId.startsWith('sub:')));
     if (showStarredOnly) filtered = filtered.filter(s => s.starred);
-    // "Running only" = live PTY, or a just-launched/forked session whose PTY isn't
-    // confirmed yet (pending). A pending session that has since exited (entry.closed)
-    // is NOT running — it lingers in pendingSessions only to keep its relaunch row.
-    if (showRunningOnly) filtered = filtered.filter(s => activePtyIds.has(s.sessionId) || (pendingSessions.has(s.sessionId) && !openSessions.get(s.sessionId)?.closed));
+    if (showRunningOnly) filtered = filtered.filter(s => isSessionLive(s.sessionId));
     if (showTodayOnly) {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -202,8 +217,8 @@ function renderProjects(projects, resort) {
 
     // Sort
     filtered = [...filtered].sort((a, b) => {
-      const aRunning = activePtyIds.has(a.sessionId) || pendingSessions.has(a.sessionId);
-      const bRunning = activePtyIds.has(b.sessionId) || pendingSessions.has(b.sessionId);
+      const aRunning = isSessionLive(a.sessionId);
+      const bRunning = isSessionLive(b.sessionId);
       const aPri = (a.starred && aRunning ? 3 : aRunning ? 2 : a.starred ? 1 : 0);
       const bPri = (b.starred && bRunning ? 3 : bRunning ? 2 : b.starred ? 1 : 0);
       if (aPri !== bPri) return bPri - aPri;
@@ -223,12 +238,12 @@ function renderProjects(projects, resort) {
     }
     const allItems = [];
     for (const session of ungrouped) {
-      const isRunning = activePtyIds.has(session.sessionId) || pendingSessions.has(session.sessionId);
+      const isRunning = isSessionLive(session.sessionId);
       allItems.push({ sortTime: new Date(session.modified).getTime(), pinned: !!session.starred, running: isRunning, element: buildSessionItem(session) });
     }
     for (const [slug, sessions] of slugMap) {
       const mostRecentTime = Math.max(...sessions.map(s => new Date(s.modified).getTime()));
-      const hasRunning = sessions.some(s => activePtyIds.has(s.sessionId) || pendingSessions.has(s.sessionId));
+      const hasRunning = sessions.some(s => isSessionLive(s.sessionId));
       const hasPinned = sessions.some(s => s.starred);
       const element = sessions.length === 1 ? buildSessionItem(sessions[0]) : buildSlugGroup(slug, sessions);
       allItems.push({ sortTime: mostRecentTime, pinned: hasPinned, running: hasRunning, element });
@@ -335,29 +350,43 @@ function renderProjects(projects, resort) {
     const shortName = project.projectPath.split('/').filter(Boolean).slice(-2).join('/');
     header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${shortName}</span>`;
 
+    // Project actions live behind a "⋯" menu (mirrors the session actions menu):
+    // a floating dropdown opened by a deliberate click, keeping the header clean.
+    const newBtn = document.createElement('button');
+    newBtn.className = 'project-new-btn';
+    newBtn.title = 'New session';
+    newBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg><span class="project-menu-label">New session</span>';
+
     const scheduleBtn = document.createElement('button');
     scheduleBtn.className = 'project-schedule-btn';
     scheduleBtn.title = 'Create scheduled task';
-    scheduleBtn.innerHTML = ICONS.schedule(16);
-    header.appendChild(scheduleBtn);
+    scheduleBtn.innerHTML = ICONS.schedule(16) + '<span class="project-menu-label">Scheduled task</span>';
 
     const settingsBtn = document.createElement('button');
     settingsBtn.className = 'project-settings-btn';
     settingsBtn.title = 'Project settings';
-    settingsBtn.innerHTML = ICONS.gear(16);
-    header.appendChild(settingsBtn);
+    settingsBtn.innerHTML = ICONS.gear(16) + '<span class="project-menu-label">Project settings</span>';
 
     const archiveGroupBtn = document.createElement('button');
     archiveGroupBtn.className = 'project-archive-btn';
     archiveGroupBtn.title = 'Archive all sessions';
-    archiveGroupBtn.innerHTML = ICONS.archive(18);
-    header.appendChild(archiveGroupBtn);
+    archiveGroupBtn.innerHTML = ICONS.archive(18) + '<span class="project-menu-label">Archive sessions</span>';
 
-    const newBtn = document.createElement('button');
-    newBtn.className = 'project-new-btn';
-    newBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>';
-    newBtn.title = 'New session';
-    header.appendChild(newBtn);
+    const projectActions = document.createElement('div');
+    projectActions.className = 'project-actions';
+    projectActions.appendChild(newBtn);
+    projectActions.appendChild(scheduleBtn);
+    projectActions.appendChild(settingsBtn);
+    projectActions.appendChild(archiveGroupBtn);
+
+    const projectMenuBtn = document.createElement('button');
+    projectMenuBtn.className = 'project-menu-btn';
+    projectMenuBtn.title = 'Project actions';
+    projectMenuBtn.setAttribute('aria-label', 'Project actions');
+    projectMenuBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>';
+
+    header.appendChild(projectMenuBtn);
+    header.appendChild(projectActions);
 
     const sessionsList = buildSessionsList(fId, visible, older);
 
@@ -549,8 +578,28 @@ function rebindSidebarEvents(projects) {
         loadProjects();
       };
     }
+    const projectMenuBtn = header.querySelector('.project-menu-btn');
+    const projectActions = header.querySelector('.project-actions');
+    if (projectMenuBtn && projectActions) {
+      projectMenuBtn.onclick = (e) => {
+        e.stopPropagation();
+        const wasOpen = header.classList.contains('menu-open');
+        document.querySelectorAll('.project-header.menu-open').forEach(el => el.classList.remove('menu-open'));
+        if (!wasOpen) {
+          header.classList.add('menu-open');  // makes the menu display:flex (fixed)
+          // Position the fixed dropdown under the "..." button, right-aligned;
+          // flip above if it would overflow the bottom of the viewport.
+          const r = projectMenuBtn.getBoundingClientRect();
+          const mw = projectActions.offsetWidth, mh = projectActions.offsetHeight;
+          let top = r.bottom + 4;
+          if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+          projectActions.style.top = top + 'px';
+          projectActions.style.left = Math.max(8, r.right - mw) + 'px';
+        }
+      };
+    }
     header.onclick = (e) => {
-      if (e.target.closest('.project-new-btn') || e.target.closest('.project-archive-btn') || e.target.closest('.project-settings-btn') || e.target.closest('.project-schedule-btn')) return;
+      if (e.target.closest('.project-new-btn') || e.target.closest('.project-archive-btn') || e.target.closest('.project-settings-btn') || e.target.closest('.project-schedule-btn') || e.target.closest('.project-menu-btn') || e.target.closest('.project-actions')) return;
       header.classList.toggle('collapsed');
     };
   }
@@ -815,10 +864,6 @@ function buildSessionItem(session) {
   summaryEl.className = 'session-summary';
   summaryEl.textContent = displayName;
 
-  const idEl = document.createElement('div');
-  idEl.className = 'session-id';
-  idEl.textContent = session.sessionId;
-
   const metaEl = document.createElement('div');
   metaEl.className = 'session-meta';
   metaEl.textContent = timeStr + (session.messageCount ? ' \u00b7 ' + session.messageCount + ' msgs' : '');
@@ -830,7 +875,6 @@ function buildSessionItem(session) {
     summaryEl.prepend(badge);
   }
   info.appendChild(summaryEl);
-  info.appendChild(idEl);
   info.appendChild(metaEl);
 
   // Action buttons container
