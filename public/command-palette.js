@@ -10,7 +10,7 @@
     overlay.id = 'cmd-palette';
     overlay.innerHTML =
       '<div class="cmdp-box">' +
-      '  <input type="text" class="cmdp-input" placeholder="Jump to session…" spellcheck="false" />' +
+      '  <input type="text" class="cmdp-input" placeholder="' + escapeHtml(t('cmd.jump')) + '" spellcheck="false" />' +
       '  <div class="cmdp-list"></div>' +
       '  <div class="cmdp-hint"><span><b>↑↓</b> navigate</span><span><b>↵</b> open</span><span><b>esc</b> close</span></div>' +
       '</div>';

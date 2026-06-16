@@ -349,7 +349,7 @@ window.api.onSessionDetected((tempId, realId) => {
   openSessions.set(realId, entry);
 
   terminalHeaderId.textContent = realId;
-  terminalHeaderName.textContent = 'New session';
+  terminalHeaderName.textContent = t('app.new_session');
 
   // Refresh sidebar to show the new session, then select it
   loadProjects().then(() => {
@@ -872,7 +872,7 @@ function dedup(projects) {
 async function loadProjects({ resort = false } = {}) {
   const wasEmpty = cachedProjects.length === 0;
   if (wasEmpty) {
-    loadingStatus.textContent = 'Loading\u2026';
+    loadingStatus.textContent = t('app.loading');
     loadingStatus.className = 'active';
     loadingStatus.style.display = '';
   }
@@ -942,7 +942,7 @@ async function launchNewSession(project, sessionOptions) {
   const projectPath = project.projectPath;
   const session = {
     sessionId,
-    summary: 'New session',
+    summary: t('app.new_session'),
     firstPrompt: '',
     projectPath,
     name: null,
@@ -1292,13 +1292,13 @@ initGridObservers();
 
   const gridToggleBtn = document.createElement('button');
   gridToggleBtn.id = 'grid-toggle-btn';
-  gridToggleBtn.title = 'Session overview';
+  gridToggleBtn.title = t('tb.t.grid');
   gridToggleBtn.innerHTML = '<svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>';
   gridToggleBtn.addEventListener('click', toggleGridView);
 
   const collapseAllBtn = document.createElement('button');
   collapseAllBtn.id = 'collapse-all-btn';
-  collapseAllBtn.title = 'Collapse / expand all projects';
+  collapseAllBtn.title = t('tb.t.collapse');
   collapseAllBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 9 12 5 20 9"/><polyline points="4 15 12 19 20 15"/></svg>';
   collapseAllBtn.addEventListener('click', () => {
     const headers = sidebarContent.querySelectorAll('.project-header');
@@ -1308,15 +1308,15 @@ initGridObservers();
 
   const bookmarksBtn = document.createElement('button');
   bookmarksBtn.id = 'bookmarks-btn';
-  bookmarksBtn.title = 'Bookmarks (⌘B)';
+  bookmarksBtn.title = t('tb.t.bookmarks');
   bookmarksBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   bookmarksBtn.addEventListener('click', () => { if (window._openBookmarks) window._openBookmarks(); });
 
   if (filtersRow) {
     const magic = document.createElement('button');
     magic.id = 'filters-toggle-btn';
-    magic.title = 'More filters & actions';
-    magic.setAttribute('aria-label', 'More filters & actions');
+    magic.title = t('tb.t.more');
+    magic.setAttribute('aria-label', t('tb.t.more'));
     magic.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="18" r="2" fill="currentColor"/></svg>';
     const popover = document.createElement('div');
     popover.id = 'filters-popover';
@@ -1334,16 +1334,16 @@ initGridObservers();
     // Ordered action list. Default placement = the layout shipped before this
     // setting existed (pin/running/overview/collapse/bookmarks visible, rest in popover).
     const TOOLBAR_ACTIONS = [
-      { key: 'pin',        id: 'star-toggle',      label: 'Pin / favourite' },
-      { key: 'running',    id: 'running-toggle',   label: 'Running only' },
-      { key: 'overview',   id: 'grid-toggle-btn',  label: 'Session overview (grid)' },
-      { key: 'collapse',   id: 'collapse-all-btn', label: 'Collapse all projects' },
-      { key: 'bookmarks',  id: 'bookmarks-btn',    label: 'Bookmarks' },
-      { key: 'today',      id: 'today-toggle',     label: 'Today only' },
-      { key: 'archive',    id: 'archive-toggle',   label: 'Show archived' },
-      { key: 'resort',     id: 'resort-btn',       label: 'Re-sort sessions' },
-      { key: 'refresh',    id: 'refresh-cache-btn', label: 'Refresh sessions (rescan)' },
-      { key: 'addProject', id: 'add-project-btn',  label: 'Add project' },
+      { key: 'pin',        id: 'star-toggle',      label: t('tb.pin') },
+      { key: 'running',    id: 'running-toggle',   label: t('tb.running') },
+      { key: 'overview',   id: 'grid-toggle-btn',  label: t('tb.overview') },
+      { key: 'collapse',   id: 'collapse-all-btn', label: t('tb.collapse') },
+      { key: 'bookmarks',  id: 'bookmarks-btn',    label: t('tb.bookmarks') },
+      { key: 'today',      id: 'today-toggle',     label: t('tb.today') },
+      { key: 'archive',    id: 'archive-toggle',   label: t('tb.archive') },
+      { key: 'resort',     id: 'resort-btn',       label: t('tb.resort') },
+      { key: 'refresh',    id: 'refresh-cache-btn', label: t('tb.refresh') },
+      { key: 'addProject', id: 'add-project-btn',  label: t('tb.add_project') },
     ];
     const TOOLBAR_DEFAULT = { pin: 'visible', running: 'visible', overview: 'visible', collapse: 'visible', bookmarks: 'visible', today: 'popover', archive: 'popover', resort: 'popover', refresh: 'popover', addProject: 'popover' };
     window._toolbarActions = TOOLBAR_ACTIONS;
@@ -1447,17 +1447,22 @@ setTimeout(() => {
 // Let the settings panel push updated key bindings live (no restart needed).
 window._applyShortcuts = (stored) => setAppShortcuts(stored);
 
-loadProjects().then(() => {
-  // Restore grid view preference before opening sessions so they enter grid mode
-  if (localStorage.getItem('gridViewActive') === '1') {
-    showGridView();
-  }
-  // Restore active session after reload
-  if (activeSessionId && !openSessions.has(activeSessionId)) {
-    const session = sessionMap.get(activeSessionId);
-    if (session) openSession(session);
-  }
-});
+// Load the saved interface language (and translate static chrome) BEFORE the
+// first render, so t()-based strings render in the right language from the start.
+(window.I18N ? window.I18N.init() : Promise.resolve())
+  .catch(() => {})
+  .then(() => loadProjects())
+  .then(() => {
+    // Restore grid view preference before opening sessions so they enter grid mode
+    if (localStorage.getItem('gridViewActive') === '1') {
+      showGridView();
+    }
+    // Restore active session after reload
+    if (activeSessionId && !openSessions.has(activeSessionId)) {
+      const session = sessionMap.get(activeSessionId);
+      if (session) openSession(session);
+    }
+  });
 
 // Live-reload sidebar when filesystem changes are detected
 let projectsChangedTimer = null;
@@ -1517,13 +1522,13 @@ function setUpdaterStatus(text, duration) {
 const updaterHandler = (type, data) => {
   switch (type) {
     case 'checking':
-      setUpdaterStatus('Checking for updates…');
+      setUpdaterStatus(t('upd.checking'));
       break;
     case 'update-available':
       setUpdaterStatus(`Downloading v${data.version}…`);
       break;
     case 'update-not-available':
-      setUpdaterStatus('Up to date', 3000);
+      setUpdaterStatus(t('upd.uptodate'), 3000);
       break;
     case 'download-progress':
       setUpdaterStatus(`Updating… ${Math.round(data.percent)}%`);
@@ -1535,7 +1540,7 @@ const updaterHandler = (type, data) => {
       const toast = document.getElementById('update-toast');
       const msg = document.getElementById('update-toast-msg');
       const notice = (data.releaseName && data.releaseName !== `v${data.version}` && data.releaseName !== data.version) ? `<span class="update-summary">${escapeHtml(data.releaseName)}</span>` : '';
-      msg.innerHTML = `New Version Ready<br><span class="update-version">v${data.version}</span> (<a href="https://github.com/doctly/switchboard/releases" target="_blank" class="update-notes-link">release notes</a>)${notice}`;
+      msg.innerHTML = `${escapeHtml(t('upd.new_ready'))}<br><span class="update-version">v${data.version}</span> (<a href="https://github.com/doctly/switchboard/releases" target="_blank" class="update-notes-link">${escapeHtml(t('upd.release_notes'))}</a>)${notice}`;
       toast.classList.remove('hidden');
       document.getElementById('update-restart-btn').onclick = () => window.api.updaterInstall();
       document.getElementById('update-dismiss-btn').onclick = () => {
@@ -1545,7 +1550,7 @@ const updaterHandler = (type, data) => {
       break;
     }
     case 'error':
-      setUpdaterStatus('Update check failed', 5000);
+      setUpdaterStatus(t('upd.failed'), 5000);
       break;
   }
 };

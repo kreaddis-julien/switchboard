@@ -22,24 +22,28 @@ const DEFAULT_SHORTCUTS = {
   gridToggle: { primary: true, alt: false, shift: true, key: 'g' },
 };
 
+// i18n shim: the renderer exposes a global t(); node (tests) does not. Fall back
+// to the key so this file stays usable under require() per the note above.
+const _t = (typeof t === 'function') ? t : (k) => k;
+
 // Metadata for rendering the settings UI and resolving each action's key family.
 const SHORTCUT_DEFS = [
   {
     id: 'sessionNavArrows',
-    label: 'Navigate sessions / grid',
-    description: 'Move between sessions (single view) or between cells (grid view)',
+    label: _t('sc.nav_label'),
+    description: _t('sc.nav_desc'),
     family: 'arrows',
   },
   {
     id: 'sessionNavBrackets',
-    label: 'Previous / next session',
-    description: 'Cycle to the previous or next session',
+    label: _t('sc.prevnext_label'),
+    description: _t('sc.prevnext_desc'),
     family: 'brackets',
   },
   {
     id: 'gridToggle',
-    label: 'Toggle grid view',
-    description: 'Show or hide the session grid overview',
+    label: _t('sc.grid_label'),
+    description: _t('sc.grid_desc'),
     family: 'key',
   },
 ];

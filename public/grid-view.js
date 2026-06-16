@@ -41,7 +41,7 @@ function wrapInGridCard(sessionId) {
 
   const stopBtn = document.createElement('button');
   stopBtn.className = 'grid-card-stop-btn';
-  stopBtn.title = 'Stop session';
+  stopBtn.title = t('session.stop');
   stopBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>';
   stopBtn.style.display = activePtyIds.has(sessionId) ? '' : 'none';
   stopBtn.onclick = (e) => {
@@ -77,7 +77,7 @@ function wrapInGridCard(sessionId) {
       targetHeading = document.createElement('div');
       targetHeading.className = 'grid-project-heading';
       targetHeading.dataset.projectPath = pp;
-      targetHeading.textContent = pp ? pp.split('/').filter(Boolean).slice(-2).join('/') : 'Other';
+      targetHeading.textContent = pp ? pp.split('/').filter(Boolean).slice(-2).join('/') : t('grid.other');
       // Insert heading in sortedOrder position
       const orderIndex = new Map(sortedOrder.map((e, i) => [e.projectPath, i]));
       const myIdx = orderIndex.get(pp);

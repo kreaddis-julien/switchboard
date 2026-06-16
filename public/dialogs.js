@@ -37,7 +37,7 @@ async function launchScheduleCreator(project) {
 
   const session = {
     sessionId: result.sessionId,
-    summary: 'Create scheduled task',
+    summary: t('proj.scheduled_task_title'),
     firstPrompt: '',
     projectPath: project.projectPath,
     name: null,
@@ -183,41 +183,41 @@ async function showNewSessionDialog(project) {
   let dangerousSkip = effective.dangerouslySkipPermissions || false;
 
   const modes = [
-    { value: null, label: 'Default', desc: 'Prompt for all actions' },
-    { value: 'acceptEdits', label: 'Accept Edits', desc: 'Auto-accept file edits, prompt for others' },
-    { value: 'plan', label: 'Plan Mode', desc: 'Read-only exploration, no writes' },
-    { value: 'dontAsk', label: "Don't Ask", desc: 'Auto-deny tools not explicitly allowed' },
-    { value: 'bypassPermissions', label: 'Bypass', desc: 'Auto-accept all tool calls' },
+    { value: null, label: t('perm.default'), desc: t('perm.default_d') },
+    { value: 'acceptEdits', label: t('perm.accept'), desc: t('perm.accept_d') },
+    { value: 'plan', label: t('perm.plan'), desc: t('perm.plan_d') },
+    { value: 'dontAsk', label: t('perm.dont_ask'), desc: t('perm.dont_ask_d') },
+    { value: 'bypassPermissions', label: t('perm.bypass'), desc: t('perm.bypass_d') },
   ];
 
   function renderModeGrid() {
     return modes.map(m => {
       const isSelected = !dangerousSkip && selectedMode === m.value;
-      return `<button class="permission-option${isSelected ? ' selected' : ''}" data-mode="${m.value}"><span class="perm-name">${m.label}</span><span class="perm-desc">${m.desc}</span></button>`;
+      return `<button class="permission-option${isSelected ? ' selected' : ''}" data-mode="${m.value}"><span class="perm-name">${escapeHtml(m.label)}</span><span class="perm-desc">${escapeHtml(m.desc)}</span></button>`;
     }).join('') +
-    `<button class="permission-option dangerous${dangerousSkip ? ' selected' : ''}" data-mode="dangerous-skip"><span class="perm-name">Dangerous Skip</span><span class="perm-desc">Skip all safety prompts (use with caution)</span></button>`;
+    `<button class="permission-option dangerous${dangerousSkip ? ' selected' : ''}" data-mode="dangerous-skip"><span class="perm-name">${escapeHtml(t('perm.dangerous'))}</span><span class="perm-desc">${escapeHtml(t('perm.dangerous_d'))}</span></button>`;
   }
 
   dialog.innerHTML = `
-    <h3>New Session — ${escapeHtml(project.projectPath.split('/').filter(Boolean).slice(-2).join('/'))}</h3>
+    <h3>${escapeHtml(t('dlg.new_session'))} — ${escapeHtml(project.projectPath.split('/').filter(Boolean).slice(-2).join('/'))}</h3>
     <div class="settings-field">
-      <div class="settings-label">Permission Mode</div>
+      <div class="settings-label">${escapeHtml(t('dlg.perm_mode'))}</div>
       <div class="permission-grid" id="nsd-mode-grid">${renderModeGrid()}</div>
     </div>
     <div class="settings-field">
       <div class="settings-field-info">
-        <span class="settings-label">Worktree</span>
-        <div class="settings-description">Run session in an isolated git worktree</div>
+        <span class="settings-label">${escapeHtml(t('dlg.worktree'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.worktree_d'))}</div>
       </div>
       <div class="settings-field-control">
-        <input type="text" class="settings-input" id="nsd-worktree-name" placeholder="name (optional)" value="${escapeHtml(effective.worktreeName || '')}" style="width:140px">
+        <input type="text" class="settings-input" id="nsd-worktree-name" placeholder="${escapeHtml(t('dlg.worktree_ph'))}" value="${escapeHtml(effective.worktreeName || '')}" style="width:140px">
         <label class="settings-toggle"><input type="checkbox" id="nsd-worktree" ${effective.worktree ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
       </div>
     </div>
     <div class="settings-field">
       <div class="settings-field-info">
-        <span class="settings-label">Chrome</span>
-        <div class="settings-description">Enable Chrome browser automation</div>
+        <span class="settings-label">${escapeHtml(t('dlg.chrome'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.chrome_d'))}</div>
       </div>
       <div class="settings-field-control">
         <label class="settings-toggle"><input type="checkbox" id="nsd-chrome" ${effective.chrome ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
@@ -225,25 +225,25 @@ async function showNewSessionDialog(project) {
     </div>
     <div class="settings-field settings-field-wide">
       <div class="settings-field-info">
-        <span class="settings-label">Pre-launch Command</span>
-        <div class="settings-description">Prepended to the claude command</div>
+        <span class="settings-label">${escapeHtml(t('dlg.prelaunch'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.prelaunch_d'))}</div>
       </div>
       <div class="settings-field-control">
-        <input type="text" class="settings-input" id="nsd-pre-launch" placeholder="e.g. aws-vault exec profile --" value="${escapeHtml(effective.preLaunchCmd || '')}">
+        <input type="text" class="settings-input" id="nsd-pre-launch" placeholder="${escapeHtml(t('dlg.prelaunch_ph'))}" value="${escapeHtml(effective.preLaunchCmd || '')}">
       </div>
     </div>
     <div class="settings-field settings-field-wide">
       <div class="settings-field-info">
-        <span class="settings-label">Additional Directories</span>
-        <div class="settings-description">Extra directories to include (comma-separated)</div>
+        <span class="settings-label">${escapeHtml(t('dlg.adddirs'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.adddirs_d'))}</div>
       </div>
       <div class="settings-field-control">
-        <input type="text" class="settings-input" id="nsd-add-dirs" placeholder="/path/to/dir1, /path/to/dir2" value="${escapeHtml(effective.addDirs || '')}">
+        <input type="text" class="settings-input" id="nsd-add-dirs" placeholder="${escapeHtml(t('dlg.adddirs_ph'))}" value="${escapeHtml(effective.addDirs || '')}">
       </div>
     </div>
     <div class="new-session-actions">
-      <button class="new-session-cancel-btn">Cancel</button>
-      <button class="new-session-start-btn">Start</button>
+      <button class="new-session-cancel-btn">${escapeHtml(t('dlg.cancel'))}</button>
+      <button class="new-session-start-btn">${escapeHtml(t('dlg.start'))}</button>
     </div>
   `;
 
@@ -317,33 +317,33 @@ async function showResumeSessionDialog(session) {
   let dangerousSkip = effective.dangerouslySkipPermissions || false;
 
   const modes = [
-    { value: null, label: 'Default', desc: 'Prompt for all actions' },
-    { value: 'acceptEdits', label: 'Accept Edits', desc: 'Auto-accept file edits, prompt for others' },
-    { value: 'plan', label: 'Plan Mode', desc: 'Read-only exploration, no writes' },
-    { value: 'dontAsk', label: "Don't Ask", desc: 'Auto-deny tools not explicitly allowed' },
-    { value: 'bypassPermissions', label: 'Bypass', desc: 'Auto-accept all tool calls' },
+    { value: null, label: t('perm.default'), desc: t('perm.default_d') },
+    { value: 'acceptEdits', label: t('perm.accept'), desc: t('perm.accept_d') },
+    { value: 'plan', label: t('perm.plan'), desc: t('perm.plan_d') },
+    { value: 'dontAsk', label: t('perm.dont_ask'), desc: t('perm.dont_ask_d') },
+    { value: 'bypassPermissions', label: t('perm.bypass'), desc: t('perm.bypass_d') },
   ];
 
   function renderModeGrid() {
     return modes.map(m => {
       const isSelected = !dangerousSkip && selectedMode === m.value;
-      return `<button class="permission-option${isSelected ? ' selected' : ''}" data-mode="${m.value}"><span class="perm-name">${m.label}</span><span class="perm-desc">${m.desc}</span></button>`;
+      return `<button class="permission-option${isSelected ? ' selected' : ''}" data-mode="${m.value}"><span class="perm-name">${escapeHtml(m.label)}</span><span class="perm-desc">${escapeHtml(m.desc)}</span></button>`;
     }).join('') +
-    `<button class="permission-option dangerous${dangerousSkip ? ' selected' : ''}" data-mode="dangerous-skip"><span class="perm-name">Dangerous Skip</span><span class="perm-desc">Skip all safety prompts (use with caution)</span></button>`;
+    `<button class="permission-option dangerous${dangerousSkip ? ' selected' : ''}" data-mode="dangerous-skip"><span class="perm-name">${escapeHtml(t('perm.dangerous'))}</span><span class="perm-desc">${escapeHtml(t('perm.dangerous_d'))}</span></button>`;
   }
 
   const sessionName = session.name || session.aiTitle || session.summary || session.sessionId.slice(0, 8);
 
   dialog.innerHTML = `
-    <h3>Resume Session — ${escapeHtml(sessionName)}</h3>
+    <h3>${escapeHtml(t('dlg.resume_session'))} — ${escapeHtml(sessionName)}</h3>
     <div class="settings-field">
-      <div class="settings-label">Permission Mode</div>
+      <div class="settings-label">${escapeHtml(t('dlg.perm_mode'))}</div>
       <div class="permission-grid" id="rsd-mode-grid">${renderModeGrid()}</div>
     </div>
     <div class="settings-field">
       <div class="settings-field-info">
-        <span class="settings-label">Chrome</span>
-        <div class="settings-description">Enable Chrome browser automation</div>
+        <span class="settings-label">${escapeHtml(t('dlg.chrome'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.chrome_d'))}</div>
       </div>
       <div class="settings-field-control">
         <label class="settings-toggle"><input type="checkbox" id="rsd-chrome" ${effective.chrome ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
@@ -351,25 +351,25 @@ async function showResumeSessionDialog(session) {
     </div>
     <div class="settings-field settings-field-wide">
       <div class="settings-field-info">
-        <span class="settings-label">Pre-launch Command</span>
-        <div class="settings-description">Prepended to the claude command</div>
+        <span class="settings-label">${escapeHtml(t('dlg.prelaunch'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.prelaunch_d'))}</div>
       </div>
       <div class="settings-field-control">
-        <input type="text" class="settings-input" id="rsd-pre-launch" placeholder="e.g. aws-vault exec profile --" value="${escapeHtml(effective.preLaunchCmd || '')}">
+        <input type="text" class="settings-input" id="rsd-pre-launch" placeholder="${escapeHtml(t('dlg.prelaunch_ph'))}" value="${escapeHtml(effective.preLaunchCmd || '')}">
       </div>
     </div>
     <div class="settings-field settings-field-wide">
       <div class="settings-field-info">
-        <span class="settings-label">Additional Directories</span>
-        <div class="settings-description">Extra directories to include (comma-separated)</div>
+        <span class="settings-label">${escapeHtml(t('dlg.adddirs'))}</span>
+        <div class="settings-description">${escapeHtml(t('dlg.adddirs_d'))}</div>
       </div>
       <div class="settings-field-control">
-        <input type="text" class="settings-input" id="rsd-add-dirs" placeholder="/path/to/dir1, /path/to/dir2" value="${escapeHtml(effective.addDirs || '')}">
+        <input type="text" class="settings-input" id="rsd-add-dirs" placeholder="${escapeHtml(t('dlg.adddirs_ph'))}" value="${escapeHtml(effective.addDirs || '')}">
       </div>
     </div>
     <div class="new-session-actions">
-      <button class="new-session-cancel-btn">Cancel</button>
-      <button class="new-session-start-btn">Resume</button>
+      <button class="new-session-cancel-btn">${escapeHtml(t('dlg.cancel'))}</button>
+      <button class="new-session-start-btn">${escapeHtml(t('dlg.resume'))}</button>
     </div>
   `;
 
@@ -436,16 +436,16 @@ function showAddProjectDialog() {
   dialog.className = 'add-project-dialog';
 
   dialog.innerHTML = `
-    <h3>Add Project</h3>
-    <div class="add-project-hint">Select a folder to create a new project. To start a session in an existing project, use the + on its project header.</div>
+    <h3>${escapeHtml(t('dlg.add_project'))}</h3>
+    <div class="add-project-hint">${escapeHtml(t('dlg.add_project_hint'))}</div>
     <div class="folder-input-row">
-      <input type="text" id="add-project-path" placeholder="/path/to/project" autocomplete="off" spellcheck="false">
-      <button class="add-project-browse-btn">Browse</button>
+      <input type="text" id="add-project-path" placeholder="${escapeHtml(t('dlg.path_ph'))}" autocomplete="off" spellcheck="false">
+      <button class="add-project-browse-btn">${escapeHtml(t('dlg.browse'))}</button>
     </div>
     <div class="add-project-error" id="add-project-error"></div>
     <div class="add-project-actions">
-      <button class="add-project-cancel-btn">Cancel</button>
-      <button class="add-project-add-btn">Add</button>
+      <button class="add-project-cancel-btn">${escapeHtml(t('dlg.cancel'))}</button>
+      <button class="add-project-add-btn">${escapeHtml(t('dlg.add'))}</button>
     </div>
   `;
 
@@ -464,7 +464,7 @@ function showAddProjectDialog() {
   async function addProject() {
     const projectPath = pathInput.value.trim();
     if (!projectPath) {
-      errorEl.textContent = 'Please enter a folder path.';
+      errorEl.textContent = t('dlg.err_folder');
       errorEl.style.display = 'block';
       return;
     }

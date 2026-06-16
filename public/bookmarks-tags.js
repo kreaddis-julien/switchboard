@@ -34,7 +34,7 @@
       '<div class="sb-modal">' +
       '  <div class="sb-modal-title">Tags</div>' +
       '  <div class="sb-modal-sub"></div>' +
-      '  <input type="text" class="sb-modal-input" placeholder="comma, separated, tags" spellcheck="false" />' +
+      '  <input type="text" class="sb-modal-input" placeholder="' + escapeHtml(t('bm.tags_ph')) + '" spellcheck="false" />' +
       '  <div class="sb-modal-actions"><button class="sb-modal-cancel">Cancel</button><button class="sb-modal-ok">Save</button></div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -71,7 +71,7 @@
     if (actions && !actions.querySelector('.session-tags-btn')) {
       const btn = document.createElement('button');
       btn.className = 'session-tags-btn';
-      btn.title = 'Edit tags';
+      btn.title = t('bm.edit_tags');
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="session-menu-label">Tags</span>';
       btn.onclick = (e) => { e.stopPropagation(); editTagsDialog(session); };
       // Placer Tags dans le groupe "organiser" (juste avant Archive), pas tout en bas.
@@ -112,7 +112,7 @@
     const sessionId = session.sessionId;
     const btn = document.createElement('button');
     btn.className = 'jsonl-bookmark-btn';
-    btn.title = 'Bookmark this message';
+    btn.title = t('bm.bookmark');
     const paint = () => btn.classList.toggle('on', isBookmarked(sessionId, uuid));
     btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
     btn.onclick = (e) => {
@@ -170,7 +170,7 @@
       };
       const del = document.createElement('button');
       del.className = 'sb-bm-del';
-      del.title = 'Remove bookmark';
+      del.title = t('bm.remove');
       del.textContent = '×';
       del.onclick = (e) => { e.stopPropagation(); toggleBookmark(b); row.remove(); if (!getBookmarks().length) listEl.innerHTML = '<div class="sb-bm-empty">No bookmarks.</div>'; };
       row.appendChild(del);

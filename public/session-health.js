@@ -5,6 +5,8 @@
     Object.assign(root, factory());
   }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
+  // i18n shim: renderer has global t(); node (UMD require) does not.
+  const _t = (typeof t === 'function') ? t : (k) => k;
   const HEALTH_THRESHOLDS = {
     userMessageCount: 30,
     messageCount: 300,
@@ -73,27 +75,27 @@
     const checks = [
       {
         key: 'user-turns',
-        label: `${formatInteger(session.userMessageCount)} user turns`,
+        label: _t('health.r.user_turns', { n: formatInteger(session.userMessageCount) }),
         crossed: numberValue(session.userMessageCount) >= HEALTH_THRESHOLDS.userMessageCount,
       },
       {
         key: 'entries',
-        label: `${formatInteger(session.messageCount)} entries`,
+        label: _t('health.r.entries', { n: formatInteger(session.messageCount) }),
         crossed: numberValue(session.messageCount) >= HEALTH_THRESHOLDS.messageCount,
       },
       {
         key: 'active-time',
-        label: `${formatDuration(session.activeMinutes)} active time`,
+        label: _t('health.r.active_time', { n: formatDuration(session.activeMinutes) }),
         crossed: numberValue(session.activeMinutes) >= HEALTH_THRESHOLDS.activeMinutes,
       },
       {
         key: 'cache-read',
-        label: `${formatCompact(session.cacheReadTokens)} cache-read tokens`,
+        label: _t('health.r.cache_read', { n: formatCompact(session.cacheReadTokens) }),
         crossed: numberValue(session.cacheReadTokens) >= HEALTH_THRESHOLDS.cacheReadTokens,
       },
       {
         key: 'big-paste',
-        label: `${formatInteger(session.largestUserPromptWords)} words in largest prompt`,
+        label: _t('health.r.big_paste', { n: formatInteger(session.largestUserPromptWords) }),
         crossed: numberValue(session.largestUserPromptWords) >= HEALTH_THRESHOLDS.largestUserPromptWords,
       },
     ];

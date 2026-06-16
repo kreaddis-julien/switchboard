@@ -41,7 +41,7 @@
     const shortName = isProject
       ? projectPath.split('/').filter(Boolean).slice(-2).join('/')
       : 'Global';
-    settingsViewerTitle.textContent = (isProject ? 'Project Settings — ' : 'Settings — ') + shortName;
+    settingsViewerTitle.textContent = (isProject ? t('set.title_project') : t('set.title')) + shortName;
 
     document.getElementById('placeholder').style.display = 'none';
     document.getElementById('terminal-area').style.display = 'none';
@@ -54,7 +54,7 @@
     const useGlobalCheckbox = (fieldName) => {
       if (!isProject) return '';
       const useGlobal = current[fieldName] === undefined || current[fieldName] === null;
-      return `<label class="settings-use-global"><input type="checkbox" data-field="${fieldName}" class="use-global-cb" ${useGlobal ? 'checked' : ''}> Use global default</label>`;
+      return `<label class="settings-use-global"><input type="checkbox" data-field="${fieldName}" class="use-global-cb" ${useGlobal ? 'checked' : ''}> ${escapeHtml(t('set.use_global'))}</label>`;
     };
     const fieldValue = (fieldName, fallback) => {
       if (isProject && (current[fieldName] === undefined || current[fieldName] === null)) {
@@ -85,6 +85,7 @@
     const systemNotificationsValue = fieldValue('systemNotifications', true);
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
+    const languageValue = fieldValue('language', 'en');
 
     // Working copy of the (global-only) re-bindable keyboard shortcuts.
     let scShortcuts = normalizeShortcuts(isProject ? null : current.shortcuts);
@@ -97,39 +98,39 @@
 
     // ---- CLI category (both scopes) ----
     const cliPane = `<div class="settings-pane" data-cat="cli">
-      ${row('Permission Mode', 'Permission mode passed to the <code>claude</code> command',
+      ${row(t('set.perm_mode'), t('set.perm_mode_d'),
         `<select class="settings-select" id="sv-perm-mode" ${fieldDisabled('permissionMode')}>
-          <option value="">Default (none)</option>
-          <option value="acceptEdits" ${permModeValue === 'acceptEdits' ? 'selected' : ''}>Accept Edits</option>
-          <option value="plan" ${permModeValue === 'plan' ? 'selected' : ''}>Plan Mode</option>
-          <option value="dontAsk" ${permModeValue === 'dontAsk' ? 'selected' : ''}>Don't Ask</option>
-          <option value="bypassPermissions" ${permModeValue === 'bypassPermissions' ? 'selected' : ''}>Bypass</option>
+          <option value="">${escapeHtml(t('set.perm_default_none'))}</option>
+          <option value="acceptEdits" ${permModeValue === 'acceptEdits' ? 'selected' : ''}>${escapeHtml(t('perm.accept'))}</option>
+          <option value="plan" ${permModeValue === 'plan' ? 'selected' : ''}>${escapeHtml(t('perm.plan'))}</option>
+          <option value="dontAsk" ${permModeValue === 'dontAsk' ? 'selected' : ''}>${escapeHtml(t('perm.dont_ask'))}</option>
+          <option value="bypassPermissions" ${permModeValue === 'bypassPermissions' ? 'selected' : ''}>${escapeHtml(t('perm.bypass'))}</option>
         </select>`, useGlobalCheckbox('permissionMode'))}
-      ${row('Worktree', 'Enable worktree for new sessions', toggle('sv-worktree', worktreeValue, fieldDisabled('worktree')), useGlobalCheckbox('worktree'))}
-      ${row('Worktree Name', 'Custom name for worktree branches',
+      ${row(t('set.worktree'), t('set.worktree_d'), toggle('sv-worktree', worktreeValue, fieldDisabled('worktree')), useGlobalCheckbox('worktree'))}
+      ${row(t('set.worktree_name'), t('set.worktree_name_d'),
         `<input type="text" class="settings-input" id="sv-worktree-name" placeholder="auto" value="${escapeHtml(worktreeNameValue)}" ${fieldDisabled('worktreeName')} style="width:140px">`, useGlobalCheckbox('worktreeName'))}
-      ${row('Chrome', 'Enable Chrome browser automation', toggle('sv-chrome', chromeValue, fieldDisabled('chrome')), useGlobalCheckbox('chrome'))}
-      ${row('Additional Directories', 'Extra directories to include in Claude sessions',
-        `<input type="text" class="settings-input" id="sv-add-dirs" placeholder="/path/to/dir1, /path/to/dir2" value="${escapeHtml(addDirsValue)}" ${fieldDisabled('addDirs')}>`, useGlobalCheckbox('addDirs'))}
-      ${row('Pre-launch Command', 'Prepended to the claude command (e.g. "aws-vault exec profile --")',
-        `<input type="text" class="settings-input" id="sv-pre-launch" placeholder="e.g. aws-vault exec profile --" value="${escapeHtml(preLaunchValue)}" ${fieldDisabled('preLaunchCmd')}>`, useGlobalCheckbox('preLaunchCmd'))}
+      ${row(t('set.chrome'), t('set.chrome_d'), toggle('sv-chrome', chromeValue, fieldDisabled('chrome')), useGlobalCheckbox('chrome'))}
+      ${row(t('set.add_dirs'), t('set.add_dirs_d'),
+        `<input type="text" class="settings-input" id="sv-add-dirs" placeholder="${escapeHtml(t('dlg.adddirs_ph'))}" value="${escapeHtml(addDirsValue)}" ${fieldDisabled('addDirs')}>`, useGlobalCheckbox('addDirs'))}
+      ${row(t('set.prelaunch'), t('set.prelaunch_d'),
+        `<input type="text" class="settings-input" id="sv-pre-launch" placeholder="${escapeHtml(t('dlg.prelaunch_ph'))}" value="${escapeHtml(preLaunchValue)}" ${fieldDisabled('preLaunchCmd')}>`, useGlobalCheckbox('preLaunchCmd'))}
     </div>`;
 
     let nav, panes;
 
     if (isProject) {
       nav = [
-        { cat: 'cli', label: 'Claude CLI' },
-        { cat: 'project', label: 'Project' },
+        { cat: 'cli', label: t('set.cat.cli') },
+        { cat: 'project', label: t('set.cat.project') },
       ];
       const currentGroup = (globalSettings.projectGroups || {})[projectPath] || '';
       panes = cliPane + `<div class="settings-pane" data-cat="project">
-        ${row('Group', 'Group this project under a labeled divider in the sidebar (blank = none).',
-          `<input type="text" class="settings-input" id="sv-project-group" placeholder="e.g. Clients" value="${escapeHtml(currentGroup)}" style="width:160px">`)}
-        ${row('Project folder', 'If the repo moved or was renamed, point Switchboard at its new location.',
-          '<button class="settings-relocate-btn" id="sv-relocate-btn">Relocate…</button>')}
-        ${row('Hide Project', 'Hides this project from the sidebar. Session files are not deleted.',
-          '<button class="settings-remove-btn" id="sv-remove-btn">Hide Project</button>')}
+        ${row(t('set.group'), t('set.group_d'),
+          `<input type="text" class="settings-input" id="sv-project-group" placeholder="${escapeHtml(t('set.ph_group'))}" value="${escapeHtml(currentGroup)}" style="width:160px">`)}
+        ${row(t('set.proj_folder'), t('set.proj_folder_d'),
+          `<button class="settings-relocate-btn" id="sv-relocate-btn">${escapeHtml(t('set.relocate'))}</button>`)}
+        ${row(t('set.hide_project'), t('set.hide_project_d'),
+          `<button class="settings-remove-btn" id="sv-remove-btn">${escapeHtml(t('set.hide_project'))}</button>`)}
       </div>`;
     } else {
       // Toolbar category: a draggable, re-orderable list with a placement select per action.
@@ -144,79 +145,84 @@
           <span class="toolbar-drag-handle" title="Drag to reorder">⠿</span>
           <span class="toolbar-config-label">${a.label}</span>
           <select class="settings-select toolbar-place-select" data-toolbar-action="${a.key}">
-            <option value="visible" ${placement[a.key] === 'visible' ? 'selected' : ''}>Toolbar</option>
-            <option value="popover" ${placement[a.key] !== 'visible' ? 'selected' : ''}>In popover</option>
+            <option value="visible" ${placement[a.key] === 'visible' ? 'selected' : ''}>${escapeHtml(t('set.toolbar'))}</option>
+            <option value="popover" ${placement[a.key] !== 'visible' ? 'selected' : ''}>${escapeHtml(t('set.in_popover'))}</option>
           </select>
         </div>`).join('');
 
       nav = [
-        { cat: 'general', label: 'General' },
-        { cat: 'notifications', label: 'Notifications' },
-        { cat: 'sessions', label: 'Sessions' },
-        { cat: 'sidebar', label: 'Sidebar' },
-        { cat: 'toolbar', label: 'Toolbar' },
-        { cat: 'cli', label: 'Claude CLI' },
-        { cat: 'about', label: 'About' },
+        { cat: 'general', label: t('set.cat.general') },
+        { cat: 'notifications', label: t('set.cat.notifications') },
+        { cat: 'sessions', label: t('set.cat.sessions') },
+        { cat: 'sidebar', label: t('set.cat.sidebar') },
+        { cat: 'toolbar', label: t('set.cat.toolbar') },
+        { cat: 'cli', label: t('set.cat.cli') },
+        { cat: 'about', label: t('set.cat.about') },
       ];
       panes = `
         <div class="settings-pane" data-cat="general">
-          ${row('Appearance', 'App theme. Auto follows the macOS appearance (incl. automatic light/dark).',
-            `<select class="settings-select" id="sv-appearance">
-              <option value="auto" ${appearanceValue === 'auto' ? 'selected' : ''}>Auto (system)</option>
-              <option value="light" ${appearanceValue === 'light' ? 'selected' : ''}>Light</option>
-              <option value="dark" ${appearanceValue === 'dark' ? 'selected' : ''}>Dark</option>
+          ${row(t('settings.language'), t('settings.language_hint'),
+            `<select class="settings-select" id="sv-language">
+              <option value="en" ${languageValue === 'en' ? 'selected' : ''}>${escapeHtml(t('lang.en'))}</option>
+              <option value="fr" ${languageValue === 'fr' ? 'selected' : ''}>${escapeHtml(t('lang.fr'))}</option>
             </select>`)}
-          ${row('Terminal Theme', 'Color theme for terminal sessions',
+          ${row(t('set.appearance'), t('set.appearance_d'),
+            `<select class="settings-select" id="sv-appearance">
+              <option value="auto" ${appearanceValue === 'auto' ? 'selected' : ''}>${escapeHtml(t('set.opt.auto_system'))}</option>
+              <option value="light" ${appearanceValue === 'light' ? 'selected' : ''}>${escapeHtml(t('set.opt.light'))}</option>
+              <option value="dark" ${appearanceValue === 'dark' ? 'selected' : ''}>${escapeHtml(t('set.opt.dark'))}</option>
+            </select>`)}
+          ${row(t('set.term_theme'), t('set.term_theme_d'),
             `<select class="settings-select" id="sv-terminal-theme">
               ${Object.entries(TERMINAL_THEMES).map(([key, t]) => `<option value="${key}" ${themeValue === key ? 'selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}
             </select>`)}
-          ${row('Shell Profile', 'Shell used for terminal and Claude sessions. Changes take effect for new sessions only.',
+          ${row(t('set.shell'), t('set.shell_d'),
             `<select class="settings-select" id="sv-shell-profile">
-              <option value="auto" ${shellProfileValue === 'auto' ? 'selected' : ''}>Auto (detect)</option>
+              <option value="auto" ${shellProfileValue === 'auto' ? 'selected' : ''}>${escapeHtml(t('set.opt.auto_detect'))}</option>
               ${shellProfiles.map((p) => `<option value="${escapeHtml(p.id)}" ${shellProfileValue === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
             </select>`)}
           ${SHORTCUT_DEFS.map((def) => row(def.label, def.description,
             `<button class="settings-shortcut-btn" id="sv-sc-${def.id}" data-sc-id="${def.id}">${escapeHtml(formatBinding(def.id, scIsMac, scShortcuts))}</button>`)).join('')}
-          <div class="settings-pane-hint">Click a shortcut, then press the new combination. At least one modifier (${scIsMac ? 'Cmd' : 'Ctrl'}, ${scIsMac ? 'Option' : 'Alt'} or Shift) is required. Press Esc to cancel, or click again to reset to default.</div>
+          <div class="settings-pane-hint">${escapeHtml(t('set.shortcut_hint', { mod1: scIsMac ? 'Cmd' : 'Ctrl', mod2: scIsMac ? 'Option' : 'Alt' }))}</div>
         </div>
 
         <div class="settings-pane" data-cat="notifications">
-          ${row('Sound Notifications', 'Play a chime when a non-focused session finishes a run or needs your attention', toggle('sv-sound-notif', soundNotificationsValue))}
-          ${row('System Notifications', 'macOS Notification Center alert (click to focus the session) + a dock badge counting sessions that need attention', toggle('sv-system-notif', systemNotificationsValue))}
+          ${row(t('set.sound'), t('set.sound_d'), toggle('sv-sound-notif', soundNotificationsValue))}
+          ${row(t('set.system_notif'), t('set.system_notif_d'), toggle('sv-system-notif', systemNotificationsValue))}
         </div>
 
         <div class="settings-pane" data-cat="sessions">
-          ${row('Max Visible Sessions', 'Show up to this many sessions before collapsing the rest behind "+N older"',
+          ${row(t('set.max_visible'), t('set.max_visible_d'),
             `<input type="number" class="settings-input settings-input-compact" id="sv-visible-count" min="1" max="100" value="${visCountValue}">`)}
-          ${row('Session Max Age (days)', 'Projects whose newest session is older than this auto-collapse in the sidebar',
+          ${row(t('set.max_age'), t('set.max_age_d'),
             `<input type="number" class="settings-input settings-input-compact" id="sv-max-age" min="1" max="365" value="${maxAgeValue}">`)}
-          ${row('IDE Emulation', 'Emulate an IDE so Claude can open files and diffs in a side panel. Disable to use your own IDE instead. New sessions only.', toggle('sv-mcp-emulation', mcpEmulationValue))}
+          ${row(t('set.ide'), t('set.ide_d'), toggle('sv-mcp-emulation', mcpEmulationValue))}
         </div>
 
         <div class="settings-pane" data-cat="sidebar">
-          ${row('Show Plans Tab', 'Show the Plans tab in the sidebar', toggle('sv-show-plans', showPlansTabValue))}
-          ${row('Show Agent Files Tab', 'Show the Agent Files (memory) tab in the sidebar', toggle('sv-show-memory', showMemoryTabValue))}
-          ${row('Show Stats Tab', 'Show the Stats tab in the sidebar', toggle('sv-show-stats', showStatsTabValue))}
-          ${row('Show Subagent Sessions', 'Nest subagent transcripts under their parent ("N subsessions"). Off hides them from the sidebar entirely.', toggle('sv-show-subagents', showSubagentSessionsValue))}
+          ${row(t('set.show_plans'), t('set.show_plans_d'), toggle('sv-show-plans', showPlansTabValue))}
+          ${row(t('set.show_memory'), t('set.show_memory_d'), toggle('sv-show-memory', showMemoryTabValue))}
+          ${row(t('set.show_stats'), t('set.show_stats_d'), toggle('sv-show-stats', showStatsTabValue))}
+          ${row(t('set.show_subagents'), t('set.show_subagents_d'), toggle('sv-show-subagents', showSubagentSessionsValue))}
           <div class="settings-field settings-field-block">
             <div class="settings-field-info">
-              <span class="settings-label">Hidden folders</span>
-              <div class="settings-description">Folders removed from the sidebar via a project's gear → Hide Project. Unhide to bring one back.</div>
+              <span class="settings-label">${escapeHtml(t('set.hidden_folders'))}</span>
+              <div class="settings-description">${escapeHtml(t('set.hidden_folders_d'))}</div>
             </div>
             <div class="settings-hidden-list" id="sv-hidden-projects"></div>
           </div>
         </div>
 
         <div class="settings-pane" data-cat="toolbar">
-          <div class="settings-pane-hint">Drag to reorder. Choose whether each action sits in the toolbar or behind the "more" (⋯) popover.</div>
+          <div class="settings-pane-hint">${escapeHtml(t('set.toolbar_hint'))}</div>
           <div class="toolbar-config-list" id="sv-toolbar-list">${toolbarRows}</div>
         </div>
 
         ${cliPane}
 
         <div class="settings-pane" data-cat="about">
-          ${row('Version', '<span id="sv-current-version"></span>', '')}
-          ${row('Auto-update', 'Disabled in this fork — it is built locally from your own repo, so there are no releases to update from.', '<span class="settings-muted">Off</span>')}
+          ${row(t('set.version'), '<span id="sv-current-version"></span>', '')}
+          ${row(t('set.autoupdate'), t('set.autoupdate_d'), `<span class="settings-muted">${escapeHtml(t('set.off'))}</span>`)}
         </div>`;
     }
 
@@ -225,7 +231,7 @@
         <nav class="settings-nav">
           ${nav.map((n, i) => `<button class="settings-nav-item${i === 0 ? ' active' : ''}" data-cat="${n.cat}">${n.label}</button>`).join('')}
           <div class="settings-nav-spacer"></div>
-          <button class="settings-nav-done" id="sv-done-btn">Done</button>
+          <button class="settings-nav-done" id="sv-done-btn">${escapeHtml(t('set.done'))}</button>
         </nav>
         <div class="settings-panes" data-active="${nav[0].cat}">
           ${panes}
@@ -327,6 +333,7 @@
         });
       } else {
         for (const f in cliReaders) settings[f] = cliReaders[f]();
+        if (q('sv-language')) settings.language = q('sv-language').value || 'en';
         if (q('sv-appearance')) settings.appearance = q('sv-appearance').value || 'auto';
         if (q('sv-terminal-theme')) settings.terminalTheme = q('sv-terminal-theme').value || 'auto';
         if (q('sv-shell-profile')) settings.shellProfile = q('sv-shell-profile').value || 'auto';
@@ -359,6 +366,15 @@
         // security-relevant, e.g. permissionMode). Surface the failure instead.
         console.error('[settings] save failed', e);
         flashSaveError();
+        return;
+      }
+
+      // Language change needs a full reload so every view re-renders translated.
+      // Keep the i18n localStorage mirror in sync so load-time strings rebuild in
+      // the new language on the very next load (no double reload).
+      if (!isProject && settings.language && settings.language !== languageValue) {
+        try { localStorage.setItem('sb-language', settings.language); } catch {}
+        window.location.reload();
         return;
       }
 

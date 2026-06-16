@@ -126,7 +126,7 @@ function renderToolUse(block) {
     try { return renderMcpAction(name, input, block); } catch {}
   }
   // Default: collapsible JSON
-  return toolBlock('neutral', name, '', makeCollapsible('jsonl-tool-result', 'Input', input, true));
+  return toolBlock('neutral', name, '', makeCollapsible('jsonl-tool-result', t('jsonl.input'), input, true));
 }
 
 function renderMcpAction(name, input, block) {
@@ -211,7 +211,7 @@ const toolRenderers = {
     const detail = '<code>' + escapeHtml(shortPath(path)) + '</code> <span class="jsonl-tool-detail">' + lines + ' lines</span>';
     let content = null;
     if (input.content) {
-      content = makeCollapsible('jsonl-tool-result', 'Content', input.content, true);
+      content = makeCollapsible('jsonl-tool-result', t('jsonl.content'), input.content, true);
     }
     return toolBlock('write', 'Write', detail, content);
   },
@@ -556,7 +556,7 @@ function renderJsonlEntry(entry, toolResultMap) {
       div.innerHTML = '<span class="jsonl-meta-icon">&#9658;</span> Bash output' + escapeHtml(elapsed);
       if (data.output || data.fullOutput) {
         const output = data.fullOutput || data.output || '';
-        div.appendChild(makeCollapsible('jsonl-tool-result', 'Output', output, true));
+        div.appendChild(makeCollapsible('jsonl-tool-result', t('jsonl.output'), output, true));
       }
       return div;
     }
@@ -598,7 +598,7 @@ function renderJsonlEntry(entry, toolResultMap) {
 
   for (const block of contentBlocks) {
     if (block.type === 'thinking' && block.thinking) {
-      div.appendChild(makeCollapsible('jsonl-thinking', 'Thinking', block.thinking, false));
+      div.appendChild(makeCollapsible('jsonl-thinking', t('jsonl.thinking'), block.thinking, false));
     } else if (block.type === 'text' && block.text && block.text.trim()) {
       // Render merged local command as a tool block
       if (block._localCmd) {

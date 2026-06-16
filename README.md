@@ -2,7 +2,7 @@
 
 **Your command center for Claude Code sessions** — a unified view of every Claude Code session across all your projects. Launch, resume, fork, and monitor sessions from a single window, no more juggling terminal tabs or digging through `~/.claude/projects`.
 
-> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts** + **session-health** insights, an experimental **Agent Teams** orchestrator, and a curated set of upstream PRs merged in. There are **no prebuilt releases** for this fork — you [build it from source](#install-build-from-source) (it takes a couple of minutes). Auto-update is intentionally disabled so a local build is never overwritten by an upstream release.
+> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts** + **session-health** insights, a **bilingual EN/FR interface**, an experimental **Agent Teams** orchestrator, and a curated set of upstream PRs merged in. There are **no prebuilt releases** for this fork — you [build it from source](#install-build-from-source) (it takes a couple of minutes). Auto-update is intentionally disabled so a local build is never overwritten by an upstream release.
 
 ## Contents
 
@@ -44,10 +44,16 @@ For Windows/Linux, see [Building](#building).
 - Light / Dark / **Auto** appearance (Auto follows the macOS system appearance) — Settings → General.
 - **Status colors** keep a Catppuccin base (running / attention / error / warning) so state stays legible on both themes; the terminal theme **"Auto (match app)"** tracks the app appearance.
 - **Custom app icon** — a "switchboard" hub wired to session nodes on a graphite, Terminal-like squircle.
+- **Subtly recessed sidebar** — the sidebar panel sits a hair off the main content (a touch greyer in light, slightly darker in dark) for a calm content/navigation separation.
+
+**Interface language (i18n)**
+- **Full English / French interface** — every view is localized (sidebar, Agent Teams, settings, dialogs, status bar, relative timestamps, and the **native macOS menu**). Switch in **Settings → General → Language**; the default is English. Changing it reloads the window so everything re-renders translated.
+- Built on a tiny in-house layer (`public/i18n.js`, `t('key')` + `en`/`fr` dictionaries, no dependency); strings are keyed and English is the source of truth, so a missing translation falls back to English rather than going blank.
 
 **Agent Teams (experimental orchestrator)**
 - A **Teams** tab spins up a coordinated team of Claude Code sessions from a single goal: a **master** plans + decomposes, **workers** implement each task in its own **git worktree** (isolated from your checkout), **reviewers** validate each task through multiple lenses, then the master **merges** into an integration branch. State is **file-based** (`<project>/.switchboard/runs/`), so a run survives a crash/restart.
-- **Kanban board** (backlog → ready → in-progress → review → merge → done), live plan/timeline views, per-tier model routing, and a **token budget stop-loss** that auto-pauses a run.
+- **Run dashboard** — a per-run detail with a progress bar, spend/budget and role/tier roster, an **Overview** tab grouping tasks by status (plus the full **Kanban board**, **Plan** and **Timeline** tabs), live updates, per-tier model routing, and a **token budget stop-loss** that auto-pauses a run.
+- **Manage runs from the board** — pause/resume, open the master session, and **delete a run** (× on the sidebar row or the header button) which removes its worktrees, session transcripts and run files, refusing while any of its sessions is live.
 - **Data-egress guard**: worker model profiles may only point at Anthropic or a loopback address (a local Ollama/LM Studio shim) — third-party endpoints are refused unless `agentTeamsAllowExternalModels` is enabled. Gated behind a per-session flag; OFF by default.
 - Requires write-capable Claude Code sessions: if your `~/.claude` is hardened read-only (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, a write-blocking `PreToolUse:Bash` hook), Agent Teams sessions need an escape hatch. Status & follow-ups in `docs/agent-teams-spec.md`.
 
@@ -85,6 +91,7 @@ For Windows/Linux, see [Building](#building).
 - **Read a transcript without attaching** — clicking a session opens it normally (attaches/focuses its terminal); to inspect a dormant session's transcript read-only, use **"View messages"** in the **"⋯" menu**. Subagent sessions, which aren't resumable, always open read-only. Relates to upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
 - **Manual refresh** — a rescan button in the sidebar toolbar (inside the "⋯ more" menu by default; pin it to the visible row via Settings) forces a full re-index and **prunes ghost rows** for sessions or whole project folders deleted on disk, then refreshes the search index.
+- **Delete a session** — a **"Delete session"** action in the ⋯ menu permanently removes a session's transcript (`<id>.jsonl` + its subagent/workflow sidecar dir) and cache rows, after an in-app confirmation. Refuses while the session is running (stop it first). Distinct from Archive, which just hides it.
 - **Hide a folder** from the sidebar (project gear → Hide Project) and **restore it** from a managed list (Settings → Sidebar → Hidden folders) — distinct from Archive, which acts on sessions.
 - **Project groups** — assign a project to a named group (project settings → Group); the sidebar renders grouped projects under a labeled divider.
 - **Relocate a moved project** ([#35](https://github.com/doctly/switchboard/pull/35)) — a project whose folder no longer exists shows a "!" badge; "Relocate…" in project settings points it at the new path.
@@ -194,6 +201,7 @@ orch-*.js          Agent Teams orchestration (protocol, spawner, watcher, cost, 
 profiles.js / worktree-manager.js   Agent Teams: model profiles (egress-guarded) + git worktree isolation
 docs/agent-teams-spec.md   Agent Teams design, status & follow-ups
 public/            Renderer (HTML/CSS/JS) — sidebar, terminals, settings, viewers
+  i18n.js              EN/FR localization layer (t() + dictionaries, loaded first)
   app.js               app wiring, toolbar layout, notifications
   settings-panel.js    settings UI (category nav + auto-save)
   bookmarks-tags.js    transcript bookmarks + session tags

@@ -359,7 +359,7 @@ function createTerminalEntry(session, opts = {}) {
   searchBar.className = 'terminal-search-bar';
   searchBar.style.display = 'none';
   searchBar.innerHTML = `
-    <input type="text" class="terminal-search-input" placeholder="Find..." />
+    <input type="text" class="terminal-search-input" placeholder="${escapeHtml(t('term.find'))}" />
     <span class="terminal-search-count"></span>
     <button class="terminal-search-prev" title="Previous (Shift+Enter)">&#x25B2;</button>
     <button class="terminal-search-next" title="Next (Enter)">&#x25BC;</button>

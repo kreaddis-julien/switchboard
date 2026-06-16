@@ -53,49 +53,49 @@ function resolveTaskProfile(run, task, role) {
   return (task && task.profileId) || (tier && tier.profileId) || run.roles?.worker?.profileId || null;
 }
 
+// labelKey (not label): these consts are evaluated at script-load time, before
+// the user's language is known, so labels are resolved through t() at render.
 const ORCH_BOARD_COLUMNS = [
-  { key: 'backlog',  label: 'Backlog',     statuses: ['draft'] },
-  { key: 'ready',    label: 'Ready',       statuses: ['ready'] },
-  { key: 'progress', label: 'In progress', statuses: ['spawning', 'in_progress'] },
-  { key: 'review',   label: 'Review',      statuses: ['needs_review', 'reviewing', 'changes_requested'] },
-  { key: 'merge',    label: 'Merge',       statuses: ['approved', 'merging'] },
-  { key: 'done',     label: 'Done',        statuses: ['done'] },
-  { key: 'attention', label: 'Attention',  statuses: ['blocked', 'failed'] },
+  { key: 'backlog',  labelKey: 'orch.col.backlog',  statuses: ['draft'] },
+  { key: 'ready',    labelKey: 'orch.col.ready',    statuses: ['ready'] },
+  { key: 'progress', labelKey: 'orch.col.progress', statuses: ['spawning', 'in_progress'] },
+  { key: 'review',   labelKey: 'orch.col.review',   statuses: ['needs_review', 'reviewing', 'changes_requested'] },
+  { key: 'merge',    labelKey: 'orch.col.merge',    statuses: ['approved', 'merging'] },
+  { key: 'done',     labelKey: 'orch.col.done',     statuses: ['done'] },
+  { key: 'attention', labelKey: 'orch.col.attention', statuses: ['blocked', 'failed'] },
 ];
 
 // Overview (dashboard) groups — urgent/active first, terminal states last.
 // `tone` maps to a semantic token (--<tone>) for the group dot.
 const ORCH_OVERVIEW_GROUPS = [
-  { key: 'attention', label: 'Attention',   statuses: ['blocked', 'failed'], tone: 'err' },
-  { key: 'running',   label: 'Running',     statuses: ['spawning', 'in_progress'], tone: 'ok' },
-  { key: 'review',    label: 'Review',      statuses: ['needs_review', 'reviewing', 'changes_requested'], tone: 'mauve' },
-  { key: 'merge',     label: 'Merge',       statuses: ['approved', 'merging'], tone: 'amber' },
-  { key: 'ready',     label: 'Ready',       statuses: ['ready'], tone: 'info' },
-  { key: 'backlog',   label: 'Backlog',     statuses: ['draft'], tone: 'muted' },
-  { key: 'done',      label: 'Done',        statuses: ['done'], tone: 'ok' },
+  { key: 'attention', labelKey: 'orch.col.attention', statuses: ['blocked', 'failed'], tone: 'err' },
+  { key: 'running',   labelKey: 'orch.col.running',   statuses: ['spawning', 'in_progress'], tone: 'ok' },
+  { key: 'review',    labelKey: 'orch.col.review',    statuses: ['needs_review', 'reviewing', 'changes_requested'], tone: 'mauve' },
+  { key: 'merge',     labelKey: 'orch.col.merge',     statuses: ['approved', 'merging'], tone: 'amber' },
+  { key: 'ready',     labelKey: 'orch.col.ready',     statuses: ['ready'], tone: 'info' },
+  { key: 'backlog',   labelKey: 'orch.col.backlog',   statuses: ['draft'], tone: 'muted' },
+  { key: 'done',      labelKey: 'orch.col.done',      statuses: ['done'], tone: 'ok' },
 ];
 
 const ORCH_DETAIL_TABS = [
-  { key: 'overview', label: 'Aperçu' },
-  { key: 'board',    label: 'Board' },
-  { key: 'plan',     label: 'Plan' },
-  { key: 'timeline', label: 'Timeline' },
+  { key: 'overview', labelKey: 'orch.tab.overview' },
+  { key: 'board',    labelKey: 'orch.tab.board' },
+  { key: 'plan',     labelKey: 'orch.tab.plan' },
+  { key: 'timeline', labelKey: 'orch.tab.timeline' },
 ];
 
-const ORCH_STATUS_LABELS = {
-  draft: 'draft', ready: 'ready', spawning: 'spawning', in_progress: 'in progress',
-  needs_review: 'needs review', reviewing: 'reviewing', changes_requested: 'changes requested',
-  approved: 'approved', merging: 'merging', done: 'done', blocked: 'blocked', failed: 'failed',
-};
+// Human status label resolved at render time.
+function orchStatusLabel(status) { return t('orch.status.' + status) || status; }
 
 // Actions a human may take per status (must mirror TASK_ACTIONS in orch-ipc.js).
+// labelKey resolved at render time (see note above).
 const ORCH_TASK_ACTIONS = {
-  draft: [{ action: 'to-ready', label: 'Mark ready' }],
-  needs_review: [{ action: 'approve', label: 'Approve (skip review)' }],
-  reviewing: [{ action: 'approve', label: 'Force approve' }, { action: 'request-changes', label: 'Request changes' }],
-  approved: [{ action: 'mark-done', label: 'Mark done (skip merge)' }],
-  blocked: [{ action: 'retry', label: 'Retry' }],
-  failed: [{ action: 'retry', label: 'Retry' }],
+  draft: [{ action: 'to-ready', labelKey: 'orch.action.mark_ready' }],
+  needs_review: [{ action: 'approve', labelKey: 'orch.action.approve_skip' }],
+  reviewing: [{ action: 'approve', labelKey: 'orch.action.force_approve' }, { action: 'request-changes', labelKey: 'orch.action.request_changes' }],
+  approved: [{ action: 'mark-done', labelKey: 'orch.action.mark_done' }],
+  blocked: [{ action: 'retry', labelKey: 'orch.action.retry' }],
+  failed: [{ action: 'retry', labelKey: 'orch.action.retry' }],
 };
 
 function initOrchestration() {
@@ -153,7 +153,7 @@ function renderTeamsSidebar() {
 
   const newBtn = document.createElement('button');
   newBtn.id = 'orch-new-run-btn';
-  newBtn.textContent = '+ New run';
+  newBtn.textContent = t('orch.new_run');
   newBtn.addEventListener('click', showNewRunDialog);
   pane.appendChild(newBtn);
 
@@ -161,7 +161,7 @@ function renderTeamsSidebar() {
   if (runs.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
-    empty.textContent = 'No Agent Teams runs yet. Start one with "+ New run".';
+    empty.textContent = t('orch.empty_runs');
     pane.appendChild(empty);
     return;
   }
@@ -209,8 +209,8 @@ function buildRunRow({ projectPath, run, summary }) {
   const del = document.createElement('button');
   del.className = 'orch-run-delete';
   del.textContent = '×';
-  del.title = 'Delete run';
-  del.setAttribute('aria-label', `Delete run ${run.title}`);
+  del.title = t('orch.delete_run');
+  del.setAttribute('aria-label', t('orch.delete_run') + ' ' + run.title);
   del.addEventListener('click', (e) => {
     e.stopPropagation();
     orchDeleteRun(projectPath, run.id, run.title);
@@ -251,7 +251,7 @@ function renderOrchPlaceholder() {
   body.replaceChildren();
   const empty = document.createElement('div');
   empty.className = 'plans-empty';
-  empty.textContent = 'Select a run from the sidebar, or create a new one.';
+  empty.textContent = t('orch.empty_select');
   body.appendChild(empty);
   const header = document.getElementById('orch-viewer-header');
   if (header) header.replaceChildren();
@@ -305,8 +305,8 @@ function buildOrchOverview() {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
     empty.textContent = orchDetail.run.status === 'planning'
-      ? 'Le master planifie — les tâches apparaîtront après /sb-decompose.'
-      : 'Aucune tâche pour ce run.';
+      ? t('orch.ov_planning')
+      : t('orch.ov_no_tasks');
     wrap.appendChild(empty);
     return wrap;
   }
@@ -328,7 +328,7 @@ function buildOrchOverview() {
     head.appendChild(dot);
     const lbl = document.createElement('span');
     lbl.className = 'orch-ov-group-label';
-    lbl.textContent = g.label;
+    lbl.textContent = t(g.labelKey);
     head.appendChild(lbl);
     const count = document.createElement('span');
     count.className = 'orch-ov-group-count';
@@ -342,7 +342,7 @@ function buildOrchOverview() {
   if (emptyGroups.length) {
     const summary = document.createElement('div');
     summary.className = 'orch-ov-empty-summary';
-    summary.textContent = emptyGroups.map(g => `${g.label} 0`).join('  ·  ');
+    summary.textContent = emptyGroups.map(g => `${t(g.labelKey)} 0`).join('  ·  ');
     wrap.appendChild(summary);
   }
   return wrap;
@@ -418,14 +418,14 @@ function buildOrchTaskRow(task) {
   const acts = document.createElement('div');
   acts.className = 'orch-ov-actions';
   const lastWorker = (task.sessionIds || []).slice(-1)[0];
-  if (lastWorker) acts.appendChild(orchRowBtn('Worker', () => orchOpenSession(lastWorker, `${task.id} worker`)));
+  if (lastWorker) acts.appendChild(orchRowBtn(t('orch.btn.worker'), () => orchOpenSession(lastWorker, `${task.id} worker`)));
   const lastReviewer = (task.reviewSessionIds || []).slice(-1)[0];
-  if (lastReviewer) acts.appendChild(orchRowBtn('Reviewer', () => orchOpenSession(lastReviewer, `${task.id} reviewer`)));
-  acts.appendChild(orchRowBtn('Spec', () => orchShowTaskFile(task.id, 'spec', `${task.id} spec`)));
+  if (lastReviewer) acts.appendChild(orchRowBtn(t('orch.btn.reviewer'), () => orchOpenSession(lastReviewer, `${task.id} reviewer`)));
+  acts.appendChild(orchRowBtn(t('orch.btn.spec'), () => orchShowTaskFile(task.id, 'spec', `${task.id} spec`)));
   const lastReview = (task.reviews || []).slice(-1)[0];
-  if (lastReview?.file) acts.appendChild(orchRowBtn('Review', () => orchShowTaskFile(task.id, lastReview.file, `${task.id} review`)));
-  for (const { action, label } of ORCH_TASK_ACTIONS[task.status] || []) {
-    acts.appendChild(orchRowBtn(label, () => orchTaskAction(task.id, action), 'orch-card-action-primary'));
+  if (lastReview?.file) acts.appendChild(orchRowBtn(t('orch.btn.review'), () => orchShowTaskFile(task.id, lastReview.file, `${task.id} review`)));
+  for (const { action, labelKey } of ORCH_TASK_ACTIONS[task.status] || []) {
+    acts.appendChild(orchRowBtn(t(labelKey), () => orchTaskAction(task.id, action), 'orch-card-action-primary'));
   }
   row.appendChild(acts);
   return row;
@@ -463,7 +463,7 @@ function renderOrchHeader() {
   if (orchDetail.invalid?.length) {
     const warn = document.createElement('span');
     warn.className = 'orch-invalid-warning';
-    warn.textContent = `⚠ ${orchDetail.invalid.length} invalid task file${orchDetail.invalid.length > 1 ? 's' : ''}`;
+    warn.textContent = '⚠ ' + t('orch.invalid_files', { n: orchDetail.invalid.length, s: orchDetail.invalid.length > 1 ? 's' : '' });
     warn.title = orchDetail.invalid.map(i => `${i.file}: ${i.error}`).join('\n');
     titleWrap.appendChild(warn);
   }
@@ -474,26 +474,26 @@ function renderOrchHeader() {
   if (run.masterSessionId) {
     const masterBtn = document.createElement('button');
     masterBtn.className = 'orch-action-btn';
-    masterBtn.textContent = 'Master session';
+    masterBtn.textContent = t('orch.btn.master');
     masterBtn.addEventListener('click', () => orchOpenSession(run.masterSessionId, `${run.title} (master)`));
     actions.appendChild(masterBtn);
   }
   if (['active', 'planning'].includes(run.status)) {
     const pauseBtn = document.createElement('button');
     pauseBtn.className = 'orch-action-btn';
-    pauseBtn.textContent = 'Pause';
+    pauseBtn.textContent = t('orch.btn.pause');
     pauseBtn.addEventListener('click', () => orchRunAction('pause'));
     actions.appendChild(pauseBtn);
   } else if (run.status === 'paused') {
     const resumeBtn = document.createElement('button');
     resumeBtn.className = 'orch-action-btn';
-    resumeBtn.textContent = 'Resume';
+    resumeBtn.textContent = t('orch.btn.resume');
     resumeBtn.addEventListener('click', () => orchRunAction('resume'));
     actions.appendChild(resumeBtn);
   }
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'orch-action-btn orch-danger-btn';
-  deleteBtn.textContent = 'Delete';
+  deleteBtn.textContent = t('orch.btn.delete');
   deleteBtn.addEventListener('click', () => orchDeleteRun(orchSelected.projectPath, run.id, run.title));
   actions.appendChild(deleteBtn);
   top.appendChild(actions);
@@ -525,7 +525,7 @@ function buildOrchStats() {
   prog.appendChild(bar);
   const label = document.createElement('span');
   label.className = 'orch-progress-label';
-  label.textContent = `${done}/${total} tâches`;
+  label.textContent = t('orch.tasks_done', { done, total });
   prog.appendChild(label);
   stats.appendChild(prog);
 
@@ -557,7 +557,7 @@ function buildOrchStats() {
   if (run.tiers && Object.keys(run.tiers).length) {
     const tiers = document.createElement('span');
     tiers.className = 'orch-stat orch-stat-tiers';
-    tiers.textContent = 'tiers — ' + COMPLEXITY_ORDER
+    tiers.textContent = t('orch.tiers_prefix') + COMPLEXITY_ORDER
       .filter(cx => run.tiers[cx])
       .map(cx => {
         const t = run.tiers[cx];
@@ -574,7 +574,7 @@ function buildOrchStats() {
 function buildOrchTabs() {
   const bar = document.createElement('div');
   bar.className = 'orch-tabbar';
-  for (const { key, label } of ORCH_DETAIL_TABS) {
+  for (const { key, labelKey } of ORCH_DETAIL_TABS) {
     const btn = document.createElement('button');
     btn.className = 'orch-tab-btn' + (orchDetailTab === key ? ' active' : '');
     btn.textContent = label;
@@ -618,7 +618,7 @@ function buildOrchBoard() {
     const head = document.createElement('div');
     head.className = 'orch-board-col-head';
     const colTasks = tasks.filter(t => col.statuses.includes(t.status));
-    head.textContent = `${col.label} (${colTasks.length})`;
+    head.textContent = `${t(col.labelKey)} (${colTasks.length})`;
     colEl.appendChild(head);
     for (const task of colTasks) colEl.appendChild(buildOrchCard(task));
     board.appendChild(colEl);
@@ -639,7 +639,7 @@ function buildOrchCard(task) {
   head.appendChild(id);
   const status = document.createElement('span');
   status.className = `orch-chip orch-status-${task.status}`;
-  status.textContent = ORCH_STATUS_LABELS[task.status] || task.status;
+  status.textContent = orchStatusLabel(task.status);
   head.appendChild(status);
   card.appendChild(head);
 
@@ -701,34 +701,34 @@ function buildOrchCard(task) {
   const lastWorker = (task.sessionIds || []).slice(-1)[0];
   if (lastWorker) {
     const btn = document.createElement('button');
-    btn.textContent = 'Worker';
-    btn.title = 'Open the worker session terminal';
+    btn.textContent = t('orch.btn.worker');
+    btn.title = t('orch.open_worker');
     btn.addEventListener('click', () => orchOpenSession(lastWorker, `${task.id} worker`));
     actions.appendChild(btn);
   }
   const lastReviewer = (task.reviewSessionIds || []).slice(-1)[0];
   if (lastReviewer) {
     const btn = document.createElement('button');
-    btn.textContent = 'Reviewer';
-    btn.title = 'Open the reviewer session terminal';
+    btn.textContent = t('orch.btn.reviewer');
+    btn.title = t('orch.open_reviewer');
     btn.addEventListener('click', () => orchOpenSession(lastReviewer, `${task.id} reviewer`));
     actions.appendChild(btn);
   }
   const specBtn = document.createElement('button');
-  specBtn.textContent = 'Spec';
+  specBtn.textContent = t('orch.btn.spec');
   specBtn.addEventListener('click', () => orchShowTaskFile(task.id, 'spec', `${task.id} spec`));
   actions.appendChild(specBtn);
   const lastReview = (task.reviews || []).slice(-1)[0];
   if (lastReview?.file) {
     const btn = document.createElement('button');
-    btn.textContent = 'Review';
+    btn.textContent = t('orch.btn.review');
     btn.addEventListener('click', () => orchShowTaskFile(task.id, lastReview.file, `${task.id} review`));
     actions.appendChild(btn);
   }
-  for (const { action, label } of ORCH_TASK_ACTIONS[task.status] || []) {
+  for (const { action, labelKey } of ORCH_TASK_ACTIONS[task.status] || []) {
     const btn = document.createElement('button');
     btn.className = 'orch-card-action-primary';
-    btn.textContent = label;
+    btn.textContent = t(labelKey);
     btn.addEventListener('click', () => orchTaskAction(task.id, action));
     actions.appendChild(btn);
   }
@@ -769,7 +769,8 @@ function showOrchTextModal(title, text) {
 
 // In-app confirm (no native dialog) reusing the orch-modal styling. Resolves
 // true on confirm, false on cancel / overlay click / Escape.
-function showOrchConfirm(title, message, confirmLabel = 'Delete') {
+function showOrchConfirm(title, message, confirmLabel) {
+  confirmLabel = confirmLabel || t('orch.btn.delete');
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'orch-modal-overlay';
@@ -790,7 +791,7 @@ function showOrchConfirm(title, message, confirmLabel = 'Delete') {
     const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
     const cancel = document.createElement('button');
     cancel.className = 'orch-action-btn';
-    cancel.textContent = 'Cancel';
+    cancel.textContent = t('orch.cancel');
     cancel.addEventListener('click', () => close(false));
     const confirm = document.createElement('button');
     confirm.className = 'orch-action-btn orch-danger-btn';
@@ -810,9 +811,9 @@ function showOrchConfirm(title, message, confirmLabel = 'Delete') {
 
 async function orchDeleteRun(projectPath, runId, title) {
   const ok = await showOrchConfirm(
-    'Delete run',
-    `Delete "${title}" and its worktrees, session transcripts and run files? This cannot be undone.`,
-    'Delete run',
+    t('orch.delete_run'),
+    t('orch.delete_msg', { title }),
+    t('orch.delete_run'),
   );
   if (!ok) return;
   const res = await window.api.orchestration.deleteRun(projectPath, runId);
@@ -860,7 +861,7 @@ function buildOrchPlan() {
       node.appendChild(label);
       const st = document.createElement('span');
       st.className = 'orch-tree-status';
-      st.textContent = ORCH_STATUS_LABELS[t.status] || t.status;
+      st.textContent = orchStatusLabel(t.status);
       node.appendChild(st);
       tree.appendChild(node);
       addNodes(t.id, depth + 1);
@@ -870,7 +871,7 @@ function buildOrchPlan() {
   if (tasks.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
-    empty.textContent = 'No tasks yet — the master is still planning.';
+    empty.textContent = t('orch.no_tasks');
     tree.appendChild(empty);
   }
   wrap.appendChild(tree);
@@ -889,7 +890,7 @@ function buildOrchPlan() {
   } else {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
-    empty.textContent = 'plan.md has not been written yet.';
+    empty.textContent = t('orch.no_plan');
     planEl.appendChild(empty);
   }
   wrap.appendChild(planEl);
@@ -905,7 +906,7 @@ function buildOrchTimeline() {
   if (events.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
-    empty.textContent = 'No events yet.';
+    empty.textContent = t('orch.no_events');
     wrap.appendChild(empty);
     return wrap;
   }
@@ -948,7 +949,7 @@ async function showNewRunDialog() {
   const head = document.createElement('div');
   head.className = 'orch-modal-head';
   const titleEl = document.createElement('span');
-  titleEl.textContent = 'New Agent Teams run';
+  titleEl.textContent = t('orch.dlg.title');
   head.appendChild(titleEl);
   const close = document.createElement('button');
   close.textContent = '×';
@@ -978,17 +979,17 @@ async function showNewRunDialog() {
     opt.textContent = p.projectPath;
     projectSel.appendChild(opt);
   }
-  field('Project', projectSel);
+  field(t('orch.dlg.project'), projectSel);
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
-  titleInput.placeholder = 'e.g. Auth refactor';
-  field('Run title', titleInput);
+  titleInput.placeholder = t('orch.dlg.title_ph');
+  field(t('orch.dlg.run_title'), titleInput);
 
   const goalInput = document.createElement('textarea');
   goalInput.rows = 5;
-  goalInput.placeholder = 'What should be built? The master agent starts from this.';
-  field('Goal', goalInput);
+  goalInput.placeholder = t('orch.dlg.goal_ph');
+  field(t('orch.dlg.goal'), goalInput);
 
   let profiles = [];
   try { profiles = (await window.api.profiles.list())?.profiles || []; } catch {}
@@ -996,7 +997,7 @@ async function showNewRunDialog() {
     const sel = document.createElement('select');
     const none = document.createElement('option');
     none.value = '';
-    none.textContent = 'Default profile';
+    none.textContent = t('orch.dlg.default_profile');
     sel.appendChild(none);
     for (const p of profiles) {
       const opt = document.createElement('option');
@@ -1007,14 +1008,14 @@ async function showNewRunDialog() {
     }
     return sel;
   };
-  const masterSel = field('Master profile (planner/orchestrator — strongest model)', profileSelect('opus'));
-  const workerSel = field('Default worker profile (fallback when no tier matches)', profileSelect('deepseek'));
-  const reviewerSel = field('Default reviewer profile (adversarial review)', profileSelect('opus'));
+  const masterSel = field(t('orch.dlg.master_profile'), profileSelect('opus'));
+  const workerSel = field(t('orch.dlg.worker_profile'), profileSelect('deepseek'));
+  const reviewerSel = field(t('orch.dlg.reviewer_profile'), profileSelect('opus'));
 
   const workerCount = document.createElement('input');
   workerCount.type = 'number';
   workerCount.min = '1'; workerCount.max = '16'; workerCount.value = '6';
-  field('Max parallel workers (global ceiling across all tiers)', workerCount);
+  field(t('orch.dlg.max_workers'), workerCount);
 
   // --- Per-complexity model tiers (cost optimisation) ---
   // Each leaf task is tagged trivial→critical by the planner; here you bind
@@ -1023,11 +1024,11 @@ async function showNewRunDialog() {
   const tierWrap = document.createElement('details');
   tierWrap.className = 'orch-tier-editor';
   const tierSummary = document.createElement('summary');
-  tierSummary.textContent = 'Model tiers by task complexity (optional — cost control)';
+  tierSummary.textContent = t('orch.dlg.tiers');
   tierWrap.appendChild(tierSummary);
   const tierHint = document.createElement('div');
   tierHint.className = 'orch-tier-hint';
-  tierHint.textContent = 'Leave a tier on "Default worker profile" to fall back. Per-tier max caps run within the global ceiling above.';
+  tierHint.textContent = t('orch.dlg.tiers_hint');
   tierWrap.appendChild(tierHint);
 
   const tierRows = {};
@@ -1040,12 +1041,12 @@ async function showNewRunDialog() {
     lab.textContent = cx;
     row.appendChild(lab);
     const sel = profileSelect();
-    sel.title = `Model for ${cx} tasks`;
+    sel.title = t('orch.dlg.tier_model', { cx });
     row.appendChild(sel);
     const cap = document.createElement('input');
     cap.type = 'number'; cap.min = '1'; cap.max = '16'; cap.placeholder = 'max';
     cap.className = 'orch-tier-cap';
-    cap.title = `Max parallel ${cx} tasks`;
+    cap.title = t('orch.dlg.tier_max', { cx });
     row.appendChild(cap);
     tierRows[cx] = { sel, cap };
     tierWrap.appendChild(row);
@@ -1053,41 +1054,41 @@ async function showNewRunDialog() {
   form.appendChild(tierWrap);
 
   const isolationSel = document.createElement('select');
-  for (const [v, label] of [['worktree', 'Git worktree per task (recommended)'], ['none', 'Shared working dir (no isolation)']]) {
+  for (const [v, label] of [['worktree', t('orch.dlg.iso_worktree')], ['none', t('orch.dlg.iso_none')]]) {
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = label;
     isolationSel.appendChild(opt);
   }
-  field('Isolation', isolationSel);
+  field(t('orch.dlg.isolation'), isolationSel);
 
   // Review rigor: how many lenses each task gets reviewed through.
   const reviewSel = document.createElement('select');
   for (const [v, label] of [
-    ['tiered', 'Tiered by complexity (recommended — more lenses for harder tasks)'],
-    ['all', 'All lenses every task (spec, functionality, tests, security, style)'],
-    ['functionality', 'Single combined review (cheapest)'],
-    ['disabled', 'No review (auto-approve — not recommended)'],
+    ['tiered', t('orch.dlg.rev_tiered')],
+    ['all', t('orch.dlg.rev_all')],
+    ['functionality', t('orch.dlg.rev_func')],
+    ['disabled', t('orch.dlg.rev_disabled')],
   ]) {
     const opt = document.createElement('option');
     opt.value = v; opt.textContent = label;
     reviewSel.appendChild(opt);
   }
-  field('Review rigor', reviewSel);
+  field(t('orch.dlg.review_rigor'), reviewSel);
 
   // Phase gate command (deterministic validation before a chunk completes).
   const validateInput = document.createElement('input');
   validateInput.type = 'text';
-  validateInput.placeholder = 'e.g. npm test  (run on the integration branch per phase)';
-  field('Default phase-gate command (optional)', validateInput);
+  validateInput.placeholder = t('orch.dlg.gate_ph');
+  field(t('orch.dlg.gate'), validateInput);
 
   // Budget stop-loss.
   const budgetUsd = document.createElement('input');
-  budgetUsd.type = 'number'; budgetUsd.min = '0'; budgetUsd.step = '0.5'; budgetUsd.placeholder = 'USD (optional)';
-  field('Budget cap — auto-pause at $ (needs provider cost data)', budgetUsd);
+  budgetUsd.type = 'number'; budgetUsd.min = '0'; budgetUsd.step = '0.5'; budgetUsd.placeholder = t('orch.dlg.usd_ph');
+  field(t('orch.dlg.budget_usd'), budgetUsd);
   const budgetTok = document.createElement('input');
-  budgetTok.type = 'number'; budgetTok.min = '0'; budgetTok.placeholder = 'output tokens (optional)';
-  field('Budget cap — auto-pause at output tokens', budgetTok);
+  budgetTok.type = 'number'; budgetTok.min = '0'; budgetTok.placeholder = t('orch.dlg.tok_ph');
+  field(t('orch.dlg.budget_tok'), budgetTok);
 
   const error = document.createElement('div');
   error.className = 'orch-form-error';
@@ -1095,14 +1096,14 @@ async function showNewRunDialog() {
 
   const submit = document.createElement('button');
   submit.className = 'orch-card-action-primary orch-form-submit';
-  submit.textContent = 'Create run & start master';
+  submit.textContent = t('orch.dlg.create');
   submit.addEventListener('click', async () => {
     error.textContent = '';
-    if (!projectSel.value) { error.textContent = 'No project selected — add a project first.'; return; }
-    if (!titleInput.value.trim()) { error.textContent = 'Title is required.'; return; }
-    if (!goalInput.value.trim()) { error.textContent = 'Goal is required.'; return; }
+    if (!projectSel.value) { error.textContent = t('orch.dlg.err_no_project'); return; }
+    if (!titleInput.value.trim()) { error.textContent = t('orch.dlg.err_title'); return; }
+    if (!goalInput.value.trim()) { error.textContent = t('orch.dlg.err_goal'); return; }
     submit.disabled = true;
-    submit.textContent = 'Creating…';
+    submit.textContent = t('orch.dlg.creating');
     const tiers = {};
     for (const cx of COMPLEXITY_ORDER) {
       const { sel, cap } = tierRows[cx];
@@ -1137,8 +1138,8 @@ async function showNewRunDialog() {
     });
     if (!res?.ok) {
       submit.disabled = false;
-      submit.textContent = 'Create run & start master';
-      error.textContent = res?.error || 'Failed to create run.';
+      submit.textContent = t('orch.dlg.create');
+      error.textContent = res?.error || t('orch.dlg.err_create');
       return;
     }
     overlay.remove();

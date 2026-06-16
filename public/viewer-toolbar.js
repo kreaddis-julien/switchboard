@@ -44,14 +44,14 @@ function toggleMarkdownPreview({ editorEl, previewEl, toggleBtn, editorView, isP
     editorEl.style.display = 'none';
     previewEl.style.display = 'block';
     toggleBtn.classList.add('active');
-    toggleBtn.title = 'Back to editor';
+    toggleBtn.title = t('vt.back');
     if (storageKey) localStorage.setItem(storageKey, 'true');
     return true;
   } else {
     previewEl.style.display = 'none';
     editorEl.style.display = '';
     toggleBtn.classList.remove('active');
-    toggleBtn.title = 'Toggle markdown preview';
+    toggleBtn.title = t('vt.md_preview');
     if (storageKey) localStorage.setItem(storageKey, 'false');
     return false;
   }
@@ -106,7 +106,7 @@ function createViewerToolbar(opts = {}) {
   if (opts.copyPath) {
     copyPathBtn = document.createElement('button');
     copyPathBtn.className = 'viewer-toolbar-copy-path';
-    copyPathBtn.title = 'Copy file path';
+    copyPathBtn.title = t('vt.copy_path');
     copyPathBtn.innerHTML = COPY_ICON;
     infoEl.appendChild(copyPathBtn);
   }
@@ -129,7 +129,7 @@ function createViewerToolbar(opts = {}) {
     previewBtn = document.createElement('button');
     previewBtn.className = 'fp-toolbar-btn fp-icon-btn';
     previewBtn.innerHTML = PREVIEW_ICON;
-    previewBtn.title = 'Toggle markdown preview';
+    previewBtn.title = t('vt.md_preview');
     controlsEl.appendChild(previewBtn);
   }
 
@@ -138,7 +138,7 @@ function createViewerToolbar(opts = {}) {
     copyContentBtn = document.createElement('button');
     copyContentBtn.className = 'fp-toolbar-btn fp-icon-btn';
     copyContentBtn.innerHTML = COPY_ICON;
-    copyContentBtn.title = 'Copy raw content';
+    copyContentBtn.title = t('vt.copy_raw');
     controlsEl.appendChild(copyContentBtn);
   }
 
@@ -146,7 +146,7 @@ function createViewerToolbar(opts = {}) {
   if (opts.wrap) {
     wrapBtn = document.createElement('button');
     wrapBtn.className = 'fp-toolbar-btn fp-icon-btn';
-    wrapBtn.title = 'Toggle line wrapping';
+    wrapBtn.title = t('vt.wrap');
     wrapBtn.innerHTML = WRAP_ICON;
     controlsEl.appendChild(wrapBtn);
   }
@@ -155,7 +155,7 @@ function createViewerToolbar(opts = {}) {
   if (opts.gotoLine) {
     gotoLineBtn = document.createElement('button');
     gotoLineBtn.className = 'fp-toolbar-btn fp-icon-btn';
-    gotoLineBtn.title = 'Go to line (Cmd+G)';
+    gotoLineBtn.title = t('vt.goto_line');
     gotoLineBtn.innerHTML = GOTO_LINE_ICON;
     controlsEl.appendChild(gotoLineBtn);
   }
@@ -164,7 +164,7 @@ function createViewerToolbar(opts = {}) {
   if (opts.save) {
     saveBtn = document.createElement('button');
     saveBtn.className = 'fp-toolbar-btn fp-save-btn fp-icon-btn';
-    saveBtn.title = 'Save changes';
+    saveBtn.title = t('file.save');
     saveBtn.innerHTML = SAVE_ICON;
     controlsEl.appendChild(saveBtn);
   }
@@ -174,7 +174,7 @@ function createViewerToolbar(opts = {}) {
     closeBtn = document.createElement('button');
     closeBtn.className = 'fp-toolbar-btn fp-close-btn fp-icon-btn';
     closeBtn.innerHTML = CLOSE_ICON;
-    closeBtn.title = 'Close panel';
+    closeBtn.title = t('file.close');
     controlsEl.appendChild(closeBtn);
   }
 

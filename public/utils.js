@@ -30,11 +30,12 @@ function formatDate(date) {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (mins < 1) return t('time.just_now');
+  if (mins < 60) return t('time.mins', { n: mins });
+  if (hours < 24) return t('time.hours', { n: hours });
+  if (days < 7) return t('time.days', { n: days });
+  const locale = (window.I18N && window.I18N.lang === 'fr') ? 'fr-FR' : 'en-US';
+  return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 function escapeHtml(str) {

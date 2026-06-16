@@ -79,13 +79,13 @@ function buildUsageSection(usage) {
   titleRow.className = 'usage-title-row';
   const title = document.createElement('div');
   title.className = 'daily-chart-title';
-  title.textContent = 'Rate Limits';
+  title.textContent = t('stats.rate_limits');
   titleRow.appendChild(title);
 
   const refreshBtn = document.createElement('button');
   refreshBtn.className = 'usage-refresh-btn';
   refreshBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>';
-  refreshBtn.title = 'Refresh usage';
+  refreshBtn.title = t('stats.refresh');
   refreshBtn.onclick = async () => {
     refreshBtn.classList.add('usage-refresh-spinning');
     refreshBtn.disabled = true;
@@ -126,10 +126,10 @@ function buildUsageSection(usage) {
   grid.className = 'usage-grid';
 
   const items = [
-    { key: 'session', label: 'Current session', resetKey: 'sessionReset' },
-    { key: 'weekAll', label: 'Week (all models)', resetKey: 'weekAllReset' },
-    { key: 'weekSonnet', label: 'Week (Sonnet)', resetKey: 'weekSonnetReset' },
-    { key: 'weekOpus', label: 'Week (Opus)', resetKey: 'weekOpusReset' },
+    { key: 'session', label: t('stats.cur_session'), resetKey: 'sessionReset' },
+    { key: 'weekAll', label: t('stats.week_all'), resetKey: 'weekAllReset' },
+    { key: 'weekSonnet', label: t('stats.week_sonnet'), resetKey: 'weekSonnetReset' },
+    { key: 'weekOpus', label: t('stats.week_opus'), resetKey: 'weekOpusReset' },
   ];
 
   for (const item of items) {
@@ -161,7 +161,7 @@ function buildUsageSection(usage) {
     if (usage[item.resetKey]) {
       const reset = document.createElement('div');
       reset.className = 'usage-card-reset';
-      reset.textContent = 'Resets ' + usage[item.resetKey];
+      reset.textContent = t('stats.resets') + usage[item.resetKey];
       card.appendChild(reset);
     }
 
@@ -214,7 +214,7 @@ function buildDailyBarChart(stats) {
 
   const title = document.createElement('div');
   title.className = 'daily-chart-title';
-  title.textContent = 'Last 30 days';
+  title.textContent = t('stats.last30');
   container.appendChild(title);
 
   const chart = document.createElement('div');
@@ -362,7 +362,7 @@ function buildHeatmap(counts) {
   legend.className = 'heatmap-legend';
   const lessLabel = document.createElement('span');
   lessLabel.className = 'heatmap-legend-label';
-  lessLabel.textContent = 'Less';
+  lessLabel.textContent = t('stats.less');
   legend.appendChild(lessLabel);
   for (let i = 0; i <= 4; i++) {
     const cell = document.createElement('div');
@@ -371,7 +371,7 @@ function buildHeatmap(counts) {
   }
   const moreLabel = document.createElement('span');
   moreLabel.className = 'heatmap-legend-label';
-  moreLabel.textContent = 'More';
+  moreLabel.textContent = t('stats.more');
   legend.appendChild(moreLabel);
   container.appendChild(legend);
 
@@ -432,10 +432,10 @@ function buildStatsSummary(stats, dailyMap) {
   const models = stats.modelUsage || {};
 
   const cards = [
-    { value: totalSessions.toLocaleString(), label: 'Total Sessions' },
-    { value: totalMessages.toLocaleString(), label: 'Total Messages' },
-    { value: currentStreak + 'd', label: 'Current Streak' },
-    { value: longestStreak + 'd', label: 'Longest Streak' },
+    { value: totalSessions.toLocaleString(), label: t('stats.total_sessions') },
+    { value: totalMessages.toLocaleString(), label: t('stats.total_messages') },
+    { value: currentStreak + 'd', label: t('stats.cur_streak') },
+    { value: longestStreak + 'd', label: t('stats.longest_streak') },
   ];
 
   for (const [model, usage] of Object.entries(models)) {
@@ -482,18 +482,18 @@ async function buildTokenAnalyticsSection() {
 
   const title = document.createElement('div');
   title.className = 'token-analytics-title';
-  title.textContent = 'Token usage';
+  title.textContent = t('stats.token_usage');
   section.appendChild(title);
 
   const cards = document.createElement('div');
   cards.className = 'stats-summary';
   const cardData = [
-    { value: fmt(totalTokens), label: 'Total tokens' },
-    { value: fmt(t.inputTokens), label: 'Input' },
-    { value: fmt(t.outputTokens), label: 'Output' },
-    { value: fmt(t.cacheReadTokens), label: 'Cache read' },
-    { value: fmt(t.toolCalls), label: 'Tool calls' },
-    { value: fmt(t.subagentInvocations), label: 'Subagents' },
+    { value: fmt(totalTokens), label: t('stats.total_tokens') },
+    { value: fmt(t.inputTokens), label: t('stats.input') },
+    { value: fmt(t.outputTokens), label: t('stats.output') },
+    { value: fmt(t.cacheReadTokens), label: t('stats.cache_read') },
+    { value: fmt(t.toolCalls), label: t('stats.tool_calls') },
+    { value: fmt(t.subagentInvocations), label: t('stats.subagents') },
   ];
   for (const c of cardData) {
     const el = document.createElement('div');

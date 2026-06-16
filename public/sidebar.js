@@ -103,7 +103,7 @@ function buildSlugGroup(slug, sessions) {
 
   const archiveSlugBtn = document.createElement('button');
   archiveSlugBtn.className = 'slug-group-archive-btn';
-  archiveSlugBtn.title = 'Archive all sessions in group';
+  archiveSlugBtn.title = t('proj.archive_group');
   archiveSlugBtn.innerHTML = ICONS.archive(14);
 
   info.appendChild(nameEl);
@@ -322,7 +322,7 @@ function renderProjects(projects, resort) {
       const moreBtn = document.createElement('div');
       moreBtn.className = 'sessions-more-toggle js-stateful';
       moreBtn.id = 'older-' + fId;
-      moreBtn.textContent = `+ ${older.length} older`;
+      moreBtn.textContent = t('sidebar.older', { n: older.length });
       const olderList = document.createElement('div');
       olderList.className = 'sessions-older js-stateful';
       olderList.id = 'older-list-' + fId;
@@ -372,23 +372,23 @@ function renderProjects(projects, resort) {
     // a floating dropdown opened by a deliberate click, keeping the header clean.
     const newBtn = document.createElement('button');
     newBtn.className = 'project-new-btn';
-    newBtn.title = 'New session';
-    newBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg><span class="project-menu-label">New session</span>';
+    newBtn.title = t('proj.new_session');
+    newBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg><span class="project-menu-label">' + escapeHtml(t('proj.new_session')) + '</span>';
 
     const scheduleBtn = document.createElement('button');
     scheduleBtn.className = 'project-schedule-btn';
-    scheduleBtn.title = 'Create scheduled task';
-    scheduleBtn.innerHTML = ICONS.schedule(16) + '<span class="project-menu-label">Scheduled task</span>';
+    scheduleBtn.title = t('proj.scheduled_task_title');
+    scheduleBtn.innerHTML = ICONS.schedule(16) + '<span class="project-menu-label">' + escapeHtml(t('proj.scheduled_task')) + '</span>';
 
     const settingsBtn = document.createElement('button');
     settingsBtn.className = 'project-settings-btn';
-    settingsBtn.title = 'Project settings';
-    settingsBtn.innerHTML = ICONS.gear(16) + '<span class="project-menu-label">Project settings</span>';
+    settingsBtn.title = t('proj.settings');
+    settingsBtn.innerHTML = ICONS.gear(16) + '<span class="project-menu-label">' + escapeHtml(t('proj.settings')) + '</span>';
 
     const archiveGroupBtn = document.createElement('button');
     archiveGroupBtn.className = 'project-archive-btn';
-    archiveGroupBtn.title = 'Archive all sessions';
-    archiveGroupBtn.innerHTML = ICONS.archive(18) + '<span class="project-menu-label">Archive sessions</span>';
+    archiveGroupBtn.title = t('proj.archive_all');
+    archiveGroupBtn.innerHTML = ICONS.archive(18) + '<span class="project-menu-label">' + escapeHtml(t('proj.archive_sessions')) + '</span>';
 
     const projectActions = document.createElement('div');
     projectActions.className = 'project-actions';
@@ -399,8 +399,8 @@ function renderProjects(projects, resort) {
 
     const projectMenuBtn = document.createElement('button');
     projectMenuBtn.className = 'project-menu-btn';
-    projectMenuBtn.title = 'Project actions';
-    projectMenuBtn.setAttribute('aria-label', 'Project actions');
+    projectMenuBtn.title = t('proj.actions');
+    projectMenuBtn.setAttribute('aria-label', t('proj.actions'));
     projectMenuBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>';
 
     header.appendChild(projectMenuBtn);
@@ -422,7 +422,7 @@ function renderProjects(projects, resort) {
       header.classList.add('path-missing');
       const warn = document.createElement('span');
       warn.className = 'project-missing-badge';
-      warn.title = 'Project folder not found on disk — open project settings (gear) to Relocate it';
+      warn.title = t('proj.path_missing');
       warn.textContent = '!';
       header.appendChild(warn);
     }
@@ -451,20 +451,20 @@ function renderProjects(projects, resort) {
 
       const wtHideBtn = document.createElement('button');
       wtHideBtn.className = 'worktree-hide-btn';
-      wtHideBtn.title = 'Hide worktree';
+      wtHideBtn.title = t('worktree.hide');
       wtHideBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
       wtHeader.appendChild(wtHideBtn);
 
       const wtDeleteBtn = document.createElement('button');
       wtDeleteBtn.className = 'worktree-delete-btn';
-      wtDeleteBtn.title = 'Delete worktree from disk';
+      wtDeleteBtn.title = t('worktree.delete');
       wtDeleteBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
       wtHeader.appendChild(wtDeleteBtn);
 
       const wtNewBtn = document.createElement('button');
       wtNewBtn.className = 'project-new-btn worktree-new-btn';
       wtNewBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>';
-      wtNewBtn.title = 'New session in worktree';
+      wtNewBtn.title = t('worktree.new_session');
       wtHeader.appendChild(wtNewBtn);
 
       const wtSessionsList = buildSessionsList(wtFId, wtResult.visible, wtResult.older);
@@ -538,7 +538,7 @@ function renderProjects(projects, resort) {
       }
       if (fromEl.classList.contains('sessions-more-toggle') && fromEl.classList.contains('expanded')) {
         toEl.classList.add('expanded');
-        toEl.textContent = '- hide older';
+        toEl.textContent = t('sidebar.hide_older');
       }
       if (fromEl.classList.contains('slug-group-older') && fromEl.style.display !== 'none') {
         toEl.style.display = '';
@@ -714,7 +714,7 @@ function rebindSidebarEvents(projects) {
       const showing = olderList.style.display !== 'none';
       olderList.style.display = showing ? 'none' : '';
       moreBtn.classList.toggle('expanded', !showing);
-      moreBtn.textContent = showing ? `+ ${count} older` : '- hide older';
+      moreBtn.textContent = showing ? t('sidebar.older', { n: count }) : t('sidebar.hide_older');
     };
   });
 
@@ -828,6 +828,14 @@ function rebindSidebarEvents(projects) {
       };
     }
 
+    const deleteBtn = item.querySelector('.session-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        deleteSessionFromSidebar(session);
+      };
+    }
+
     const menuBtn = item.querySelector('.session-menu-btn');
     const menu = item.querySelector('.session-actions');
     if (menuBtn && menu) {
@@ -859,6 +867,38 @@ function rebindSidebarEvents(projects) {
       saveExpandedSlugs();
     }
   }
+}
+
+// Permanently delete a session's transcript. Refuses while it's running (the
+// main process also enforces this), confirms, then drops it from the sidebar.
+async function deleteSessionFromSidebar(session) {
+  if (activePtyIds.has(session.sessionId)) {
+    if (typeof setStatus === 'function') setStatus(t('session.delete_running'), 'error');
+    else alert(t('session.delete_running'));
+    return;
+  }
+  const name = cleanDisplayName(session.name || session.aiTitle || session.summary) || session.sessionId.slice(0, 8);
+  // In-app modal (reliable) rather than native confirm(), which Electron may
+  // suppress — leaving the user with no prompt at all.
+  const ok = (typeof showOrchConfirm === 'function')
+    ? await showOrchConfirm(t('session.delete'), t('session.delete_confirm', { name }), t('session.delete'))
+    : confirm(t('session.delete_confirm', { name }));
+  if (!ok) return;
+  let res;
+  try { res = await window.api.deleteSession(session.sessionId, session.folder); } catch (e) { res = { ok: false, error: String(e) }; }
+  if (!res || !res.ok) {
+    const msg = (res && res.error) || 'delete failed';
+    if (typeof setStatus === 'function') setStatus(msg, 'error'); else alert(msg);
+    return;
+  }
+  // If the deleted session is open in a terminal, close it; then refresh.
+  if (typeof destroySession === 'function' && typeof openSessions !== 'undefined' && openSessions.has(session.sessionId)) {
+    try { destroySession(session.sessionId); } catch {}
+  }
+  const el = document.getElementById('si-' + session.sessionId);
+  const wrap = el && el.closest('.session-with-subs');
+  (wrap || el)?.remove();
+  if (typeof refreshSidebar === 'function') refreshSidebar();
 }
 
 function buildSessionItem(session) {
@@ -926,9 +966,12 @@ function buildSessionItem(session) {
     if (health && health.shouldWarn) {
       healthEl = document.createElement('span');
       healthEl.className = 'session-health ' + health.className;
+      // Localised label via the stable className key (health-<x> -> health.<x>);
+      // reason details still come from session-health.js (English for now).
+      const label = t('health.' + health.className.replace('health-', ''));
       const reasons = (health.reasons || []).map((r) => r.label).join(' · ');
-      healthEl.title = reasons ? health.label + ': ' + reasons : health.label;
-      healthEl.setAttribute('aria-label', health.label);
+      healthEl.title = reasons ? label + ': ' + reasons : label;
+      healthEl.setAttribute('aria-label', label);
     }
   }
 
@@ -940,50 +983,58 @@ function buildSessionItem(session) {
 
   const stopBtn = document.createElement('button');
   stopBtn.className = 'session-stop-btn';
-  stopBtn.title = 'Stop session';
+  stopBtn.title = t('session.stop');
   stopBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>';
 
   const archiveBtn = document.createElement('button');
   archiveBtn.className = 'session-archive-btn';
-  archiveBtn.title = session.archived ? 'Unarchive' : 'Archive';
+  archiveBtn.title = session.archived ? t('session.unarchive') : t('session.archive');
   archiveBtn.innerHTML = ICONS.archive(16);
 
   const forkBtn = document.createElement('button');
   forkBtn.className = 'session-fork-btn';
-  forkBtn.title = 'Fork session';
+  forkBtn.title = t('session.fork');
   forkBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3h-5v5"/><path d="M21 3l-7.536 7.536a5 5 0 0 0-1.464 3.534v6.93"/><path d="M3 3l7.536 7.536a5 5 0 0 1 1.464 3.534v.93"/></svg>';
 
   const jsonlBtn = document.createElement('button');
   jsonlBtn.className = 'session-jsonl-btn';
-  jsonlBtn.title = 'View messages';
+  jsonlBtn.title = t('session.view_messages');
   jsonlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>';
 
   const resumeBtn = document.createElement('button');
   resumeBtn.className = 'session-resume-btn';
-  resumeBtn.title = 'Resume (attach terminal)';
+  resumeBtn.title = t('session.resume');
   resumeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 
   const launchConfigBtn = document.createElement('button');
   launchConfigBtn.className = 'session-launch-config-btn';
-  launchConfigBtn.title = 'Resume with config';
+  launchConfigBtn.title = t('session.resume_config');
   launchConfigBtn.innerHTML = ICONS.launchConfig(14);
 
   // Labels: the actions render as a vertical menu opened via the "..." button.
-  resumeBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Resume</span>');
-  stopBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Stop</span>');
-  forkBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Fork</span>');
-  jsonlBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">View messages</span>');
-  archiveBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + (session.archived ? 'Unarchive' : 'Archive') + '</span>');
-  launchConfigBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">Resume with config</span>');
+  resumeBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(t('session.menu.resume')) + '</span>');
+  stopBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(t('session.menu.stop')) + '</span>');
+  forkBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(t('session.menu.fork')) + '</span>');
+  jsonlBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(t('session.view_messages')) + '</span>');
+  archiveBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(session.archived ? t('session.unarchive') : t('session.archive')) + '</span>');
+  launchConfigBtn.insertAdjacentHTML('beforeend', '<span class="session-menu-label">' + escapeHtml(t('session.resume_config')) + '</span>');
 
   // Pin/Unpin dans le menu (remplace l'icone au survol).
   const pinMenuBtn = document.createElement('button');
   pinMenuBtn.className = 'session-pin-btn';
-  pinMenuBtn.title = session.starred ? 'Unpin' : 'Pin';
+  pinMenuBtn.title = session.starred ? t('session.unpin') : t('session.pin');
   pinMenuBtn.innerHTML = (session.starred
     ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707c-.28-.28-.576-.49-.888-.656L10.073 9.333l-.07 3.181a.5.5 0 0 1-.853.354l-3.535-3.536-4.243 4.243a.5.5 0 1 1-.707-.707l4.243-4.243L1.372 5.11a.5.5 0 0 1 .354-.854l3.18-.07L8.37.722A3.37 3.37 0 0 1 9.12.074a.5.5 0 0 1 .708.002l-.707.707z"/></svg>'
     : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1-.707.707c-.28-.28-.576-.49-.888-.656L10.073 9.333l-.07 3.181a.5.5 0 0 1-.853.354l-3.535-3.536-4.243 4.243a.5.5 0 1 1-.707-.707l4.243-4.243L1.372 5.11a.5.5 0 0 1 .354-.854l3.18-.07L8.37.722A3.37 3.37 0 0 1 9.12.074a.5.5 0 0 1 .708.002l-.707.707z"/></svg>')
-    + '<span class="session-menu-label">' + (session.starred ? 'Unpin' : 'Pin') + '</span>';
+    + '<span class="session-menu-label">' + escapeHtml(session.starred ? t('session.unpin') : t('session.pin')) + '</span>';
+
+  // Delete session — permanently removes the transcript (danger, last in menu).
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'session-delete-btn';
+  deleteBtn.title = t('session.delete');
+  deleteBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg><span class="session-menu-label">' + escapeHtml(t('session.delete')) + '</span>';
+  // Click handler is bound in rebindSidebarEvents() (post-morphdom), like the
+  // other menu actions — addEventListener here would not survive re-render.
 
   // Ordre logique : ouvrir -> deriver/inspecter -> organiser -> archiver.
   if (session.type !== 'terminal') {
@@ -998,7 +1049,11 @@ function buildSessionItem(session) {
   }
   actions.appendChild(pinMenuBtn);          // Pin (Tags sera insere juste apres par bookmarks-tags)
   if (session.type !== 'terminal') {
-    actions.appendChild(archiveBtn);        // Archive (en dernier)
+    actions.appendChild(archiveBtn);        // Archive
+    // Delete only for real session transcripts (UUID id) — not synthetic subagent rows.
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.sessionId)) {
+      actions.appendChild(deleteBtn);       // Delete (danger, last)
+    }
   }
   actions.classList.add('session-menu');
 
@@ -1006,8 +1061,8 @@ function buildSessionItem(session) {
   // overlay), so a stray hover/click on the session can't fire stop/fork.
   const menuBtn = document.createElement('button');
   menuBtn.className = 'session-menu-btn';
-  menuBtn.title = 'Actions';
-  menuBtn.setAttribute('aria-label', 'Session actions');
+  menuBtn.title = t('session.actions');
+  menuBtn.setAttribute('aria-label', t('session.actions'));
   menuBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>';
 
   row.appendChild(pin);
@@ -1031,7 +1086,7 @@ function buildSessionItem(session) {
 
     const toggle = document.createElement('button');
     toggle.className = 'subsessions-toggle';
-    toggle.innerHTML = '<span class="subsessions-caret"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>' + subs.length + ' subsession' + (subs.length > 1 ? 's' : '') + '</span>';
+    toggle.innerHTML = '<span class="subsessions-caret"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span><span>' + escapeHtml(t(subs.length > 1 ? 'sidebar.subsessions' : 'sidebar.subsession', { n: subs.length })) + '</span>';
     toggle.addEventListener('click', (e) => {
       e.stopPropagation();
       wrap.classList.toggle('subs-open');

@@ -293,48 +293,69 @@ function createWindow() {
   });
 }
 
+// Native menu labels, localised from the saved language setting. The renderer's
+// i18n.js can't reach the main process, so the menu carries its own small map.
+// role-based items already localise to the OS; we also give them explicit labels
+// so the whole menu follows the APP language even when it differs from the OS.
+const MENU_STRINGS = {
+  en: {
+    settings: 'Settings…', edit: 'Edit', view: 'View',
+    about: 'About {app}', hide: 'Hide {app}', hideOthers: 'Hide Others', unhide: 'Show All', quit: 'Quit {app}',
+    undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', selectAll: 'Select All',
+    devtools: 'Toggle Developer Tools', resetZoom: 'Actual Size', zoomIn: 'Zoom In', zoomOut: 'Zoom Out', fullscreen: 'Toggle Full Screen',
+  },
+  fr: {
+    settings: 'Réglages…', edit: 'Édition', view: 'Affichage',
+    about: 'À propos de {app}', hide: 'Masquer {app}', hideOthers: 'Masquer les autres', unhide: 'Tout afficher', quit: 'Quitter {app}',
+    undo: 'Annuler', redo: 'Rétablir', cut: 'Couper', copy: 'Copier', paste: 'Coller', selectAll: 'Tout sélectionner',
+    devtools: 'Afficher les outils de développement', resetZoom: 'Taille réelle', zoomIn: 'Zoom avant', zoomOut: 'Zoom arrière', fullscreen: 'Activer le plein écran',
+  },
+};
+
 function buildMenu() {
+  const lang = ((getSetting('global') || {}).language) === 'fr' ? 'fr' : 'en';
+  const m = MENU_STRINGS[lang];
   const template = [
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        { role: 'about', label: m.about.replace('{app}', app.name) },
         { type: 'separator' },
         {
-          label: 'Settings…',
+          label: m.settings,
           accelerator: 'CmdOrCtrl+,',
           click: () => { if (mainWindow) mainWindow.webContents.send('open-global-settings'); },
         },
         { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
+        { role: 'hide', label: m.hide.replace('{app}', app.name) },
+        { role: 'hideOthers', label: m.hideOthers },
+        { role: 'unhide', label: m.unhide },
         { type: 'separator' },
-        { role: 'quit' },
+        { role: 'quit', label: m.quit.replace('{app}', app.name) },
       ],
     },
     {
-      label: 'Edit',
+      label: m.edit,
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        { role: 'undo', label: m.undo },
+        { role: 'redo', label: m.redo },
         { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
+        { role: 'cut', label: m.cut },
+        { role: 'copy', label: m.copy },
+        { role: 'paste', label: m.paste },
+        { role: 'selectAll', label: m.selectAll },
       ],
     },
     {
-      label: 'View',
+      label: m.view,
       submenu: [
-        { role: 'toggleDevTools' },
+        { role: 'toggleDevTools', label: m.devtools },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        { role: 'resetZoom', label: m.resetZoom },
+        { role: 'zoomIn', label: m.zoomIn },
+        { role: 'zoomOut', label: m.zoomOut },
         { type: 'separator' },
-        { role: 'togglefullscreen' },
+        { role: 'togglefullscreen', label: m.fullscreen },
       ],
     },
   ];
@@ -1184,7 +1205,12 @@ ipcMain.handle('get-setting', (_event, key) => {
 });
 
 ipcMain.handle('set-setting', (_event, key, value) => {
+  const prevLang = key === 'global' ? ((getSetting('global') || {}).language) : undefined;
   setSetting(key, value);
+  // Rebuild the native menu in the new language when it changes.
+  if (key === 'global' && value && value.language !== prevLang) {
+    try { buildMenu(); } catch {}
+  }
   return { ok: true };
 });
 
@@ -1209,6 +1235,7 @@ const SETTING_DEFAULTS = {
   terminalTheme: 'switchboard',
   mcpEmulation: false,
   shellProfile: 'auto',
+  language: 'en',   // interface language ('en' | 'fr'); see public/i18n.js
   // Agent Teams: secure-by-default data-egress policy. When false, worker
   // profiles may only point at Anthropic or a loopback address (see profiles.js).
   agentTeamsAllowExternalModels: false,
@@ -1357,6 +1384,56 @@ ipcMain.handle('archive-session', (_event, sessionId, archived) => {
   const val = archived ? 1 : 0;
   setArchived(sessionId, val);
   return { archived: val };
+});
+
+// --- IPC: delete-session ---
+// Permanently removes a session's transcript (`<id>.jsonl` + its `<id>/` sidecar
+// dir holding subagent/workflow/tool-result files) and its cache/search rows.
+// Refuses while the session is live (an attached PTY) — deleting a running
+// session's transcript would corrupt an active conversation. `folder` is the
+// Claude Code project folder (a single path segment) the renderer already knows.
+const DELETE_SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Locate the project folder holding <sessionId>.jsonl, when the renderer's hint
+// is missing/unusable (e.g. a freshly-created session not yet fully indexed).
+function findSessionFolder(sessionId) {
+  try {
+    for (const d of fs.readdirSync(PROJECTS_DIR, { withFileTypes: true })) {
+      if (d.isDirectory() && fs.existsSync(path.join(PROJECTS_DIR, d.name, sessionId + '.jsonl'))) {
+        return d.name;
+      }
+    }
+  } catch {}
+  return null;
+}
+ipcMain.handle('delete-session', (_event, sessionId, folder) => {
+  if (!DELETE_SESSION_UUID_RE.test(sessionId || '')) return { ok: false, error: 'invalid session id' };
+  const live = activeSessions.get(sessionId);
+  if (live && !live.exited) return { ok: false, error: 'session is running — stop it first' };
+
+  // Trust the renderer's folder only if it's a safe single segment AND actually
+  // holds the transcript; otherwise find it on disk.
+  let dirName = (typeof folder === 'string' && folder && !/[\\/]|\.\./.test(folder)) ? folder : null;
+  if (!dirName || !fs.existsSync(path.join(PROJECTS_DIR, dirName, sessionId + '.jsonl'))) {
+    dirName = findSessionFolder(sessionId);
+  }
+  if (!dirName) {
+    // No transcript on disk — still clear any stale cache row so the row goes away.
+    try { deleteCachedSession(sessionId); } catch {}
+    try { deleteSearchSession(sessionId); } catch {}
+    return { ok: true, removed: false };
+  }
+
+  const dir = path.join(PROJECTS_DIR, dirName);
+  try {
+    fs.rmSync(path.join(dir, sessionId + '.jsonl'), { force: true });
+    fs.rmSync(path.join(dir, sessionId), { recursive: true, force: true });
+  } catch (err) {
+    return { ok: false, error: `failed to remove transcript: ${err.message}` };
+  }
+  try { deleteCachedSession(sessionId); } catch {}
+  try { deleteSearchSession(sessionId); } catch {}
+  log.info(`[session] deleted ${sessionId} from ${dirName}`);
+  return { ok: true, removed: true };
 });
 
 // --- IPC: open-terminal ---
