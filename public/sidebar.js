@@ -364,7 +364,9 @@ function renderProjects(projects, resort) {
     const _leaf = _np.pop();
     const _prefix = _np.length ? _np.join('/') + '/' : '';
     const _count = (project.sessions || []).filter(s => !nestParentOf(s)).length;
-    header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${_prefix ? `<span class="project-path">${escapeHtml(_prefix)}</span>` : ''}${escapeHtml(_leaf)}</span>${_count ? `<span class="project-count">${_count}</span>` : ''}`;
+    // Count badge only when it adds information (>1) — a "1" on every header is
+    // pure noise on a dense sidebar.
+    header.innerHTML = `<span class="arrow">&#9660;</span> <span class="project-name">${_prefix ? `<span class="project-path">${escapeHtml(_prefix)}</span>` : ''}${escapeHtml(_leaf)}</span>${_count > 1 ? `<span class="project-count">${_count}</span>` : ''}`;
 
     // Project actions live behind a "⋯" menu (mirrors the session actions menu):
     // a floating dropdown opened by a deliberate click, keeping the header clean.
@@ -915,15 +917,18 @@ function buildSessionItem(session) {
   // (marathon-risk / handoff-recommended). Healthy/growing show nothing to keep
   // the dense sidebar uncluttered. Reasons (which thresholds were crossed) go in
   // the tooltip. Guarded so a missing module never breaks the row.
+  // Rendered as a small coloured dot on the title row (left of the time), not a
+  // full-width pill — the label + which thresholds were crossed live in the
+  // tooltip, so the title stays the dominant element and the list stays calm.
+  let healthEl = null;
   if (typeof getSessionHealth === 'function' && session.type !== 'terminal') {
     const health = getSessionHealth(session);
     if (health && health.shouldWarn) {
-      const hb = document.createElement('span');
-      hb.className = 'session-health ' + health.className;
-      hb.textContent = health.label;
+      healthEl = document.createElement('span');
+      healthEl.className = 'session-health ' + health.className;
       const reasons = (health.reasons || []).map((r) => r.label).join(' · ');
-      hb.title = reasons ? health.label + ': ' + reasons : health.label;
-      info.appendChild(hb);
+      healthEl.title = reasons ? health.label + ': ' + reasons : health.label;
+      healthEl.setAttribute('aria-label', health.label);
     }
   }
 
@@ -1008,6 +1013,7 @@ function buildSessionItem(session) {
   row.appendChild(pin);
   row.appendChild(dot);
   row.appendChild(info);
+  if (healthEl) row.appendChild(healthEl);
   row.appendChild(metaEl);
   row.appendChild(menuBtn);
   item.appendChild(row);
