@@ -125,3 +125,43 @@ test('unwatch stops events; refresh forces immediate rescan', async () => {
     w.dispose();
   }
 });
+
+test('safety poll stays active even when fs.watch is attached (snapshot cannot freeze)', () => {
+  // Regression guard: the watcher used to clear its poll the moment fs.watch
+  // attached, so a missed/dropped fs.watch event would freeze the snapshot and
+  // the spawner would never see a run go active. The fix keeps a slow safety
+  // poll running alongside fs.watch.
+  const project = tmpProject();
+  proto.createRun(project, { title: 'demo', roles: ROLES }); // ensures runs dir exists → fs.watch attaches
+  const w = new OrchWatcher();
+  try {
+    w.watchProject(project);
+    const entry = w._projects.get(path.resolve(project));
+    assert.ok(entry, 'project is tracked');
+    assert.ok(entry.watcher, 'fs.watch attached (runs dir exists)');
+    assert.ok(entry.pollTimer, 'safety poll still running alongside fs.watch');
+  } finally {
+    w.dispose();
+  }
+});
+
+test('poll-only mode catches changes when fs.watch never delivers (eventual consistency)', async () => {
+  // Simulate the real failure: no fs.watch events. Watch a project whose runs
+  // dir does not exist yet (so it starts in poll mode), create a run + active
+  // task, and assert the snapshot converges WITHOUT any manual refresh().
+  const project = tmpProject();
+  const w = new OrchWatcher();
+  try {
+    w.watchProject(project); // no .switchboard yet → poll mode (POLL_MS = 2500)
+    assert.equal(w.getSnapshot(project).runs.length, 0);
+    const { run } = proto.createRun(project, { title: 'demo', roles: ROLES });
+    proto.writeRun(project, { ...run, status: 'active' });
+    proto.writeTask(project, run.id, { id: 'T-1', title: 'a', status: 'ready', kind: 'leaf' });
+    // Wait for the poll to converge (no refresh() call).
+    const [, snap] = await waitFor(w, 'state', (_p, s) => s.runs.some(r => r.run.status === 'active'), 6000);
+    assert.equal(snap.runs[0].run.status, 'active');
+    assert.equal(snap.runs[0].tasks[0].status, 'ready');
+  } finally {
+    w.dispose();
+  }
+});

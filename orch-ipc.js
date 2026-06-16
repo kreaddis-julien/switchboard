@@ -69,6 +69,35 @@ function seedSessionJsonl({ sessionId, cwd, slug, text }) {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Every session id a run owns: the interactive master plus every worker/reviewer
+// session recorded on its tasks. Used to tear down transcripts when a run is
+// deleted (and to refuse deletion while any of them is still live).
+function collectRunSessionIds(projectPath, runId) {
+  const ids = new Set();
+  const run = proto.readRun(projectPath, runId);
+  if (run && run.masterSessionId) ids.add(run.masterSessionId);
+  let detailed;
+  try { detailed = proto.readTasksDetailed(projectPath, runId); } catch { detailed = { tasks: [] }; }
+  for (const t of (detailed.tasks || [])) {
+    for (const sid of [...(t.sessionIds || []), ...(t.reviewSessionIds || [])]) {
+      if (sid) ids.add(sid);
+    }
+  }
+  return [...ids].filter(id => UUID_RE.test(id));
+}
+
+// Remove a session's transcript (`<id>.jsonl`) and its sidecar dir (`<id>/`,
+// holding subagent/workflow/tool-result files) from the project's transcripts
+// folder. Best-effort: a missing file is fine, the goal is "gone".
+function deleteSessionTranscript(projectPath, sessionId) {
+  if (!UUID_RE.test(sessionId)) return;
+  const dir = path.join(PROJECTS_DIR, encodeProjectPath(projectPath));
+  try { fs.rmSync(path.join(dir, `${sessionId}.jsonl`), { force: true }); } catch {}
+  try { fs.rmSync(path.join(dir, sessionId), { recursive: true, force: true }); } catch {}
+}
+
 // deps: { openTerminal, sendInput, isSessionActive, isSessionBusy, getMainWindow }
 // deps.ipcMain is injectable so the whole IPC surface is testable without
 // Electron (tests pass a recorder; production falls back to the real one).
@@ -216,6 +245,7 @@ function init(log, deps) {
       permissionMode: masterCfg.permissionMode || 'acceptEdits',
       initialPrompt: tpl.masterBootPrompt(run),
       appendSystemPrompt: tpl.rolePrompt('master', run, resolved, null),
+      agentTeams: true, // sets SWITCHBOARD_AGENT_TEAMS so guardrail hooks waive read-only prompts
     });
     if (!res || !res.ok) {
       proto.appendEvent(resolved, run.id, { type: 'note', actor: 'switchboard', text: `master spawn failed: ${res?.error}` });
@@ -245,6 +275,39 @@ function init(log, deps) {
     return { ok: true, run: { ...run, status: target } };
   });
 
+  ipcMain.handle('orch:delete-run', async (_e, projectPath, runId) => {
+    const resolved = checkedProject(projectPath, 'write');
+    if (!resolved) return { ok: false, error: 'project not allowed' };
+    if (!proto.RUN_ID_RE.test(runId || '')) return { ok: false, error: 'invalid run id' };
+    const rDir = proto.runDir(resolved, runId);
+    if (!fs.existsSync(rDir)) return { ok: false, error: 'run not found' };
+
+    // Refuse while any of the run's sessions is still live — deleting a running
+    // session's transcript would corrupt an active conversation. The user must
+    // stop/close them first (or abandon the run), exactly as for a live session.
+    const sessionIds = collectRunSessionIds(resolved, runId);
+    const active = sessionIds.filter(id => deps.isSessionActive(id));
+    if (active.length) {
+      return { ok: false, error: `run has ${active.length} live session(s); close them before deleting`, active };
+    }
+
+    // 1. git worktrees, 2. session transcripts, 3. the run directory itself.
+    // Worktree/transcript failures are non-fatal: we still want the run gone.
+    try { await wt.removeRunWorktrees(resolved, runId); } catch (err) {
+      log.error(`[orch] delete-run ${runId}: worktree cleanup failed: ${err.message}`);
+    }
+    for (const id of sessionIds) deleteSessionTranscript(resolved, id);
+    try {
+      fs.rmSync(rDir, { recursive: true, force: true });
+    } catch (err) {
+      return { ok: false, error: `failed to remove run directory: ${err.message}` };
+    }
+
+    watcher.refresh(resolved);
+    log.info(`[orch] run ${runId} deleted from ${resolved} (${sessionIds.length} session(s))`);
+    return { ok: true, removedSessions: sessionIds.length };
+  });
+
   ipcMain.handle('orch:task-action', (_e, projectPath, runId, taskId, action) => {
     const resolved = checkedProject(projectPath, 'write');
     if (!resolved) return { ok: false, error: 'project not allowed' };
@@ -271,4 +334,7 @@ function init(log, deps) {
   };
 }
 
-module.exports = { init, seedSessionJsonl, setProjectsDirForTesting, TASK_ACTIONS, RUN_ACTIONS };
+module.exports = {
+  init, seedSessionJsonl, setProjectsDirForTesting, TASK_ACTIONS, RUN_ACTIONS,
+  collectRunSessionIds, deleteSessionTranscript,
+};

@@ -143,8 +143,12 @@ class OrchSpawner {
     acted = this._runPhaseGates(projectPath, run, tasks, policy) || acted;
     if (policy.isolation !== 'none') await this._cleanupDoneWorktrees(projectPath, run, tasks);
 
-    let activeWorkers = tasks.filter(t => proto.ACTIVE_WORKER_STATUSES.has(t.status)).length;
-    let activeReviewers = tasks.filter(t => proto.ACTIVE_REVIEWER_STATUSES.has(t.status)).length;
+    // Only LEAF tasks occupy a worker/reviewer slot — a chunk/epic sits at
+    // `in_progress` while its children run but has no session of its own.
+    // Counting chunks here would consume the worker cap (e.g. 2 chunks at
+    // in_progress == cap 2) and the ready leaves would never dispatch → deadlock.
+    let activeWorkers = tasks.filter(t => leaf(t) && proto.ACTIVE_WORKER_STATUSES.has(t.status)).length;
+    let activeReviewers = tasks.filter(t => leaf(t) && proto.ACTIVE_REVIEWER_STATUSES.has(t.status)).length;
     const workerCap = run.roles.worker?.maxConcurrent ?? 4;
     const reviewerCap = run.roles.reviewer?.maxConcurrent ?? 2;
 
@@ -152,7 +156,7 @@ class OrchSpawner {
     // (e.g. 8 cheap "trivial" tasks in parallel but only 1 "critical" on Opus).
     const tierActive = {};
     for (const t of tasks) {
-      if (proto.ACTIVE_WORKER_STATUSES.has(t.status)) {
+      if (leaf(t) && proto.ACTIVE_WORKER_STATUSES.has(t.status)) {
         const c = proto.taskComplexity(t);
         tierActive[c] = (tierActive[c] || 0) + 1;
       }
@@ -166,12 +170,18 @@ class OrchSpawner {
       tierActive[c] = (tierActive[c] || 0) + 1;
     };
 
-    // Concurrency is bounded by the role cap AND by file overlap: two tasks
-    // whose filesHint intersect must never run at the same time, however
-    // high the cap is. Every not-yet-merged task that has started work
-    // occupies its files (its branch holds unmerged edits until `done`).
+    // Concurrency is bounded by the role cap AND by file overlap: two LEAF tasks
+    // whose filesHint intersect must never run at the same time, however high the
+    // cap is. Every not-yet-merged leaf that has started work occupies its files
+    // (its branch holds unmerged edits until `done`).
+    //
+    // Only leaves count: a chunk/epic carries the UNION of its children's
+    // filesHint and sits at `in_progress` while those children run, so counting
+    // chunks here would make every leaf overlap its own parent → the leaf is
+    // deferred forever and the run deadlocks. Chunks do no file work themselves.
     const occupiedFiles = new Set();
     for (const t of tasks) {
+      if (!leaf(t)) continue;
       if (['spawning', 'in_progress', 'needs_review', 'reviewing', 'changes_requested', 'approved', 'merging'].includes(t.status)) {
         for (const f of t.filesHint || []) occupiedFiles.add(proto.normalizeFileHint(f));
       }
@@ -591,6 +601,7 @@ class OrchSpawner {
       permissionMode: roleCfg.permissionMode || 'acceptEdits',
       initialPrompt,
       appendSystemPrompt: (extraSystemPrompt ? `${base}\n\n${extraSystemPrompt}` : base) || undefined,
+      agentTeams: true, // sets SWITCHBOARD_AGENT_TEAMS so guardrail hooks waive read-only prompts
       mcpEmulation: false,
       // Worktree sessions need access to the protocol files, which live
       // outside the worktree subtree (.switchboard/runs, guidelines.md).

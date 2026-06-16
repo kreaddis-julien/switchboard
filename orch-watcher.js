@@ -20,6 +20,13 @@ const proto = require('./orch-protocol');
 
 const DEBOUNCE_MS = 150;
 const POLL_MS = 2500; // fallback + waiting-for-dir-to-exist cadence
+// Safety net kept running EVEN when fs.watch is attached: a recursive fs.watch
+// can attach without error yet miss events (macOS FSEvents on atomic
+// rename-writes, newly-created subdirs, or a handle that quietly stops
+// delivering). Without a poll the snapshot then freezes at its last-seen state
+// and the spawner never sees a run go active → workers never dispatch. The poll
+// guarantees eventual consistency; scanProject dedups, so idle polls are quiet.
+const SAFETY_POLL_MS = 5000;
 
 class OrchWatcher extends EventEmitter {
   constructor({ log } = {}) {
@@ -36,7 +43,7 @@ class OrchWatcher extends EventEmitter {
     if (this._disposed || !projectPath) return;
     const key = path.resolve(projectPath);
     if (this._projects.has(key)) return;
-    const entry = { watcher: null, pollTimer: null, debounceTimer: null, snapshot: null };
+    const entry = { watcher: null, pollTimer: null, pollIntervalMs: null, debounceTimer: null, snapshot: null };
     this._projects.set(key, entry);
     this._attach(key, entry);
     this._rescan(key);
@@ -92,25 +99,33 @@ class OrchWatcher extends EventEmitter {
           this.log.warn(`[orch] watcher error for ${key}: ${err.message}; falling back to polling`);
           try { entry.watcher.close(); } catch {}
           entry.watcher = null;
-          this._ensurePolling(key, entry);
+          this._ensurePolling(key, entry, POLL_MS);
         });
-        // Watcher attached — polling no longer needed.
-        if (entry.pollTimer) { clearInterval(entry.pollTimer); entry.pollTimer = null; }
+        // fs.watch handles latency; a slow safety poll stays on as a net against
+        // missed events (see SAFETY_POLL_MS) so the snapshot can't freeze.
+        this._ensurePolling(key, entry, SAFETY_POLL_MS);
         return;
       } catch (err) {
         this.log.warn(`[orch] fs.watch failed for ${key}: ${err.message}; polling instead`);
       }
     }
-    this._ensurePolling(key, entry);
+    this._ensurePolling(key, entry, POLL_MS);
   }
 
-  _ensurePolling(key, entry) {
-    if (entry.pollTimer) return;
+  _ensurePolling(key, entry, intervalMs) {
+    // Replace an existing poll only if the cadence changed (e.g. fast fallback
+    // poll → slow safety poll once fs.watch attaches), so we never stack timers.
+    if (entry.pollTimer) {
+      if (entry.pollIntervalMs === intervalMs) return;
+      clearInterval(entry.pollTimer);
+      entry.pollTimer = null;
+    }
+    entry.pollIntervalMs = intervalMs;
     entry.pollTimer = setInterval(() => {
       // Try to upgrade to a real watcher once the runs dir appears.
-      this._attach(key, entry);
+      if (!entry.watcher) this._attach(key, entry);
       this._rescan(key);
-    }, POLL_MS);
+    }, intervalMs);
     if (entry.pollTimer.unref) entry.pollTimer.unref();
   }
 

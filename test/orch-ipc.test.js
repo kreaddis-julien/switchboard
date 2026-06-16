@@ -35,14 +35,14 @@ function makeRepo() {
   return dir;
 }
 
-function makeModule({ openTerminalResult = { ok: true } } = {}) {
+function makeModule({ openTerminalResult = { ok: true }, isSessionActive = () => false } = {}) {
   const ipc = fakeIpcMain();
   const calls = { openTerminal: [] };
   const mod = orchIpc.init(noopLog, {
     ipcMain: ipc,
     openTerminal: async (...args) => { calls.openTerminal.push(args); return openTerminalResult; },
     sendInput: () => true,
-    isSessionActive: () => false,
+    isSessionActive,
     isSessionBusy: () => false,
     getMainWindow: () => null,
   });
@@ -82,6 +82,7 @@ test('orch:create-run scaffolds, installs the agent pack and spawns the master',
     assert.equal(sessionId, res.masterSessionId);
     assert.equal(cwd, project);
     assert.equal(isNew, true); // fresh spawn (claude --session-id), not seed+resume
+    assert.equal(opts.agentTeams, true); // sets SWITCHBOARD_AGENT_TEAMS so guardrail hooks waive prompts
     assert.equal(opts.profileId, 'anthropic');
     assert.match(opts.initialPrompt, new RegExp(`^/sb-plan ${res.run.id} test goal`));
     // No synthetic seed: the boot prompt (/sb-plan) is delivered as claude's
@@ -264,6 +265,75 @@ test('orch:create-run reports failure but leaves a recoverable run when the mast
     assert.ok(run.masterSessionId, 'masterSessionId recorded for recovery');
     const events = proto.readEvents(project, runId);
     assert.ok(events.some(e => /master spawn failed/.test(e.text || '')));
+  } finally {
+    mod.dispose();
+  }
+});
+
+test('orch:delete-run removes the run dir and its session transcripts', async () => {
+  const project = makeRepo();
+  const projectsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-del-proj-'));
+  orchIpc.setProjectsDirForTesting(projectsDir);
+  const master = 'aaaaaaaa-0000-0000-0000-000000000001';
+  const worker = 'aaaaaaaa-0000-0000-0000-000000000002';
+  const { run } = proto.createRun(project, { title: 'to-delete', roles: ROLES, policy: { isolation: 'none' } });
+  proto.writeRun(project, { ...run, masterSessionId: master });
+  proto.writeTask(project, run.id, { id: 'T-1', title: 'a', status: 'done', kind: 'leaf', sessionIds: [worker] });
+  // Seed the two transcripts (+ a sidecar dir for the worker) the run owns.
+  for (const sid of [master, worker]) {
+    orchIpc.seedSessionJsonl({ sessionId: sid, cwd: project, slug: run.id, text: 'x' });
+  }
+  const folder = path.join(projectsDir, require('../encode-project-path').encodeProjectPath(project));
+  fs.mkdirSync(path.join(folder, worker, 'subagents'), { recursive: true });
+  fs.writeFileSync(path.join(folder, worker, 'subagents', 'a.jsonl'), '{}\n');
+
+  const { ipc, mod } = makeModule();
+  try {
+    assert.ok(fs.existsSync(proto.runDir(project, run.id)));
+    const res = await ipc.invoke('orch:delete-run', project, run.id);
+    assert.equal(res.ok, true, res.error);
+    assert.equal(res.removedSessions, 2);
+    assert.equal(fs.existsSync(proto.runDir(project, run.id)), false, 'run dir removed');
+    assert.equal(fs.existsSync(path.join(folder, `${master}.jsonl`)), false, 'master transcript removed');
+    assert.equal(fs.existsSync(path.join(folder, `${worker}.jsonl`)), false, 'worker transcript removed');
+    assert.equal(fs.existsSync(path.join(folder, worker)), false, 'worker sidecar dir removed');
+
+    const missing = await ipc.invoke('orch:delete-run', project, 'no-such-run');
+    assert.equal(missing.ok, false);
+  } finally {
+    mod.dispose();
+  }
+});
+
+test('orch:delete-run refuses while a run session is still live', async () => {
+  const project = makeRepo();
+  const master = 'bbbbbbbb-0000-0000-0000-000000000001';
+  const { run } = proto.createRun(project, { title: 'live', roles: ROLES, policy: { isolation: 'none' } });
+  proto.writeRun(project, { ...run, masterSessionId: master });
+
+  const { ipc, mod } = makeModule({ isSessionActive: (id) => id === master });
+  try {
+    const res = await ipc.invoke('orch:delete-run', project, run.id);
+    assert.equal(res.ok, false);
+    assert.match(res.error, /live session/);
+    assert.deepEqual(res.active, [master]);
+    assert.ok(fs.existsSync(proto.runDir(project, run.id)), 'run dir left intact while live');
+  } finally {
+    mod.dispose();
+  }
+});
+
+test('orch:delete-run rejects disallowed projects and bad run ids', async () => {
+  const project = makeRepo();
+  const { run } = proto.createRun(project, { title: 'x', roles: ROLES, policy: { isolation: 'none' } });
+  const { ipc, mod } = makeModule();
+  try {
+    let res = await ipc.invoke('orch:delete-run', 'C:\\nope', run.id);
+    assert.equal(res.ok, false);
+    assert.match(res.error, /not allowed/);
+    res = await ipc.invoke('orch:delete-run', project, '../escape');
+    assert.equal(res.ok, false);
+    assert.match(res.error, /invalid run id/);
   } finally {
     mod.dispose();
   }

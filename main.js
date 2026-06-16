@@ -1585,6 +1585,13 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
       // feature, and only for sessions explicitly launched with it.
       if (sessionOptions?.agentTeams) {
         ptyEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
+        // Marker for a user's PreToolUse guardrail (e.g. check-readonly.sh): claude
+        // owns the CLAUDE_* namespace and may consume/drop the experimental flag
+        // before spawning hook subprocesses, so a hook can't reliably key off it.
+        // This SWITCHBOARD_* var is never touched by claude → it reaches hooks,
+        // which use it to waive the read-only confirmation for the autonomous local
+        // writes orchestrated sessions make (protocol files, worktree edits, commits).
+        ptyEnv.SWITCHBOARD_AGENT_TEAMS = '1';
       }
 
       ptyProcess = pty.spawn(shell, shellArgs(shell, claudeCmd, shellExtraArgs), {

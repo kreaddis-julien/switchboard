@@ -154,6 +154,7 @@ contextBridge.exposeInMainWorld('api', {
     createRun: (projectPath, opts) => ipcRenderer.invoke('orch:create-run', projectPath, opts),
     runAction: (projectPath, runId, action) => ipcRenderer.invoke('orch:run-action', projectPath, runId, action),
     taskAction: (projectPath, runId, taskId, action) => ipcRenderer.invoke('orch:task-action', projectPath, runId, taskId, action),
+    deleteRun: (projectPath, runId) => ipcRenderer.invoke('orch:delete-run', projectPath, runId),
     onUpdated: (cb) => {
       const handler = (_e, state) => cb(state);
       ipcRenderer.on('orchestration-updated', handler);

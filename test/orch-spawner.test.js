@@ -70,6 +70,7 @@ test('ready leaf task gets a worker session and moves to in_progress', async () 
     assert.equal(call.cwd, project); // isolation none
     assert.equal(call.isNew, true); // fresh spawn (claude --session-id), not seed+resume
     assert.equal(call.opts.profileId, 'deepseek');
+    assert.equal(call.opts.agentTeams, true); // sets SWITCHBOARD_AGENT_TEAMS so guardrail hooks waive prompts
     assert.equal(call.opts.permissionMode, 'acceptEdits');
     assert.equal(call.opts.initialPrompt, `/sb-work ${run.id} T-1`);
     assert.match(call.opts.appendSystemPrompt, /worker/);
@@ -297,4 +298,54 @@ test('chunk in_progress is never recovered as worker-died (chunks carry no worke
     assert.equal(proto.readTask(project, run.id, 'C-1').status, 'in_progress'); // chunk untouched
     assert.equal(proto.readTask(project, run.id, 'T-1').status, 'in_progress'); // live leaf untouched
   } finally { spawner.stop?.(); watcher.dispose(); }
+});
+
+test('chunks (in_progress) do not occupy worker slots or files — leaves still dispatch', async () => {
+  // Regression: chunks sit at in_progress while their leaves run AND carry the
+  // union of their children's filesHint. They must NOT (a) count against the
+  // worker cap nor (b) occupy files, or every leaf overlaps its own parent and
+  // the worker pool saturates on chunks → run deadlocks at 0 workers spawned.
+  const project = tmpProject();
+  const run = makeActiveRun(project); // worker maxConcurrent = 2
+  // Two chunks in_progress, each sharing its leaf's single file.
+  proto.writeTask(project, run.id, { id: 'C-01', title: 'c1', status: 'in_progress', kind: 'chunk', filesHint: ['a.md'] });
+  proto.writeTask(project, run.id, { id: 'C-02', title: 'c2', status: 'in_progress', kind: 'chunk', filesHint: ['b.md'] });
+  proto.writeTask(project, run.id, { id: 'T-101', title: 'l1', status: 'ready', kind: 'leaf', parent: 'C-01', filesHint: ['a.md'] });
+  proto.writeTask(project, run.id, { id: 'T-201', title: 'l2', status: 'ready', kind: 'leaf', parent: 'C-02', filesHint: ['b.md'] });
+
+  const watcher = new OrchWatcher();
+  const { calls, deps } = makeHarness();
+  const spawner = new OrchSpawner({ watcher, deps });
+  try {
+    watcher.watchProject(project);
+    await spawner.reconcile(project);
+    const dispatched = calls.openTerminal.map(c => c.opts.initialPrompt).sort();
+    assert.equal(calls.openTerminal.length, 2, 'both leaves dispatched despite in_progress chunks');
+    assert.deepEqual(dispatched, [`/sb-work ${run.id} T-101`, `/sb-work ${run.id} T-201`]);
+    assert.equal(proto.readTask(project, run.id, 'T-101').status, 'in_progress');
+    assert.equal(proto.readTask(project, run.id, 'T-201').status, 'in_progress');
+  } finally {
+    spawner.stop();
+    watcher.dispose();
+  }
+});
+
+test('two ready leaves sharing a file: only one dispatches at a time (real overlap still enforced)', async () => {
+  // The leaf-only file-occupancy must still prevent two LEAVES on the same file.
+  const project = tmpProject();
+  const run = makeActiveRun(project);
+  proto.writeTask(project, run.id, { id: 'T-1', title: 'a', status: 'ready', kind: 'leaf', filesHint: ['shared.md'] });
+  proto.writeTask(project, run.id, { id: 'T-2', title: 'b', status: 'ready', kind: 'leaf', filesHint: ['shared.md'] });
+
+  const watcher = new OrchWatcher();
+  const { calls, deps } = makeHarness();
+  const spawner = new OrchSpawner({ watcher, deps });
+  try {
+    watcher.watchProject(project);
+    await spawner.reconcile(project);
+    assert.equal(calls.openTerminal.length, 1, 'second leaf deferred — same file');
+  } finally {
+    spawner.stop();
+    watcher.dispose();
+  }
 });
