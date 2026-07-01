@@ -183,6 +183,45 @@ body { display: flex; flex-direction: column; }
   padding: 3px 4px;
 }
 #update-dismiss-btn:hover { color: var(--c-999); }
+
+/* ========== RESTORE-SESSIONS TOAST ========== */
+.restore-toast {
+  position: fixed;
+  bottom: 32px;
+  right: 12px;
+  background: var(--c-1a1a2e);
+  border: 1px solid rgb(var(--accent-rgb) / 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--c-c0c0d0);
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: toast-slide-in 0.3s ease-out;
+}
+.restore-toast-msg { white-space: nowrap; line-height: 1.4; margin-right: 6px; }
+.restore-toast-restore {
+  background: var(--accent);
+  color: var(--c-fff);
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.restore-toast-dismiss {
+  background: none;
+  border: none;
+  color: var(--c-666);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 4px;
+}
+.restore-toast-dismiss:hover { color: var(--c-999); }
+
 @keyframes toast-slide-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }

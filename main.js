@@ -1250,6 +1250,7 @@ const SETTING_DEFAULTS = {
   mcpEmulation: false,
   shellProfile: 'auto',
   language: 'en',   // interface language ('en' | 'fr'); see public/i18n.js
+  restoreOnStartup: 'off',  // 'off' | 'ask' | 'auto' — reopen last session set at launch
 };
 
 ipcMain.handle('get-shell-profiles', () => {
