@@ -55,6 +55,7 @@
   "build": {
     "appId": "ai.doctly.switchboard",
     "productName": "Switchboard",
+    "afterPack": "./scripts/afterpack-adhoc.js",
     "files": [
       "*.js",
       "workers/**/*",
@@ -89,9 +90,9 @@
       ],
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "notarize": true
+      "notarize": false
     },
     "win": {
       "target": [
