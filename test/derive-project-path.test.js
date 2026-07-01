@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 
 const { deriveProjectPath } = require('../derive-project-path');
+const { encodeProjectPath } = require('../encode-project-path');
 
 function mkTmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'switchboard-dpp-'));
@@ -22,10 +23,11 @@ function cleanup(dir) {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-// Claude Code encodes a startup cwd into a folder name by replacing "/" and "."
-// with "-". Build a project folder + a JSONL whose cwd lines are given verbatim.
+// Claude Code encodes a startup cwd into a folder name by replacing every
+// non-alphanumeric char with "-" (the shared encodeProjectPath rule). Build a
+// project folder + a JSONL whose cwd lines are given verbatim.
 function encode(cwd) {
-  return cwd.replace(/[/.]/g, '-');
+  return encodeProjectPath(cwd);
 }
 function writeSessionWithCwds(projectsDir, folderName, cwds) {
   const folderPath = path.join(projectsDir, folderName);
@@ -111,6 +113,27 @@ test('re-attributes a worktree cwd to its parent project', () => {
     writeSessionWithCwds(projectsDir, folderName, [worktree]);
     // resolveWorktreePath collapses the worktree path back to the parent project.
     assert.equal(deriveProjectPath(path.join(projectsDir, folderName), folderName), parent);
+  } finally {
+    cleanup(projectsDir);
+  }
+});
+
+test('matches folders for cwds containing "_"/spaces (CLI maps them to "-")', () => {
+  // Regression for the encoder divergence: the CLI encodes "_" and spaces to "-",
+  // so the folder name loses them. The old derive rule (only "/" and ".") kept
+  // "_", never matched the folder, and fell back to the dominant cwd. With the
+  // shared encoder the folder-matching startup cwd wins over a drifting subdir.
+  const projectsDir = mkTmp();
+  try {
+    const startup = path.join(projectsDir, 'my_project (v2)');
+    const folderName = encode(startup); // "_", space, "(" , ")" -> "-"
+    assert.ok(!folderName.includes('_'), 'folder name must not keep underscores');
+    writeSessionWithCwds(projectsDir, folderName, [
+      path.join(startup, 'sub'),  // dominant, drifting subdir
+      path.join(startup, 'sub'),
+      startup,                    // the resumable startup cwd (minority)
+    ]);
+    assert.equal(deriveProjectPath(path.join(projectsDir, folderName), folderName), startup);
   } finally {
     cleanup(projectsDir);
   }
