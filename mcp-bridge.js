@@ -487,10 +487,18 @@ function cleanStaleLockFiles(log) {
       const lockPath = path.join(IDE_DIR, file);
       try {
         const data = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-        if (data.ideName === 'Switchboard' && data.pid === process.pid) {
-          // Our PID but we didn't start it — stale from crash
-          fs.unlinkSync(lockPath);
-          if (log) log.info(`[mcp] Cleaned stale lock file: ${file}`);
+        // Remove Switchboard-owned locks whose recorded process is no longer
+        // alive (left behind by a crashed run). process.kill(pid, 0) sends no
+        // signal — it just probes existence and throws ESRCH when the PID is dead.
+        // (The old check compared to process.pid, which never matches a prior
+        // run's PID, so stale locks were never actually cleaned.)
+        if (data.ideName === 'Switchboard' && typeof data.pid === 'number') {
+          let alive = true;
+          try { process.kill(data.pid, 0); } catch (e) { alive = (e.code === 'EPERM'); }
+          if (!alive) {
+            fs.unlinkSync(lockPath);
+            if (log) log.info(`[mcp] Cleaned stale lock file: ${file} (pid ${data.pid} dead)`);
+          }
         }
       } catch {
         // Not our lock file or can't parse — skip
