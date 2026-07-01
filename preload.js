@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('api', {
   setProjectGroup: (projectPath, group) => ipcRenderer.invoke('set-project-group', projectPath, group),
   deleteWorktree: (worktreePath) => ipcRenderer.invoke('delete-worktree', worktreePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  writeClipboard: (text) => ipcRenderer.invoke('clipboard-write-text', text),
 
   // Send (fire-and-forget)
   sendInput: (id, data) => ipcRenderer.send('terminal-input', id, data),
