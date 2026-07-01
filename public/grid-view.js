@@ -308,10 +308,19 @@ function initGridObservers() {
       for (const e of entries) {
         const sid = e.target.dataset.sessionId;
         if (!sid) continue;
+        const en = openSessions.get(sid);
         if (e.isIntersecting) {
           restoreTerminalWebgl(sid);
+          // Back on-screen: clear the background-write flag and flush whatever
+          // accumulated while it was scrolled out (Stage A skipped its writes).
+          if (en) en.element.classList.remove('offscreen');
+          drainReplayBuffer(sid);
         } else {
           suspendTerminalWebgl(sid);
+          // Off-screen grid card: mark it so isSessionVisible() treats it as
+          // background and the flush path skips VT parse (Stage A) — otherwise
+          // the background-write optimisation is lost for the whole grid.
+          if (en) en.element.classList.add('offscreen');
         }
       }
     }, { threshold: 0 });

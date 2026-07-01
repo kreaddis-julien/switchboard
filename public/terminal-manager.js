@@ -230,7 +230,10 @@ function enforceReplayBufferCap(sessionId) {
 function isSessionVisible(sessionId) {
   const entry = openSessions.get(sessionId);
   if (!entry) return false;
-  return entry.element.classList.contains('visible');
+  // '.offscreen' is set by the grid IntersectionObserver on scrolled-out cards;
+  // treat those as background so the flush path skips their VT parse. Single-view
+  // terminals never carry it, so this only narrows visibility in grid mode.
+  return entry.element.classList.contains('visible') && !entry.element.classList.contains('offscreen');
 }
 
 // Drain the raw replay buffer for sessionId by writing all accumulated data to the
