@@ -330,6 +330,10 @@ async function startMcpServer(sessionId, workspaceFolders, mainWindow, log) {
   const wss = new WebSocketServer({
     port,
     host: '127.0.0.1',
+    // Cap frame size: ws defaults to 100 MiB and every frame is JSON.parsed on
+    // the broker (main) process. 8 MiB comfortably covers large diffs while a
+    // same-user client can't spike RSS / block the event loop with giant frames.
+    maxPayload: 8 * 1024 * 1024,
     handleProtocols: (protocols) => {
       if (protocols.has('mcp')) return 'mcp';
       return false;
