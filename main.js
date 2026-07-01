@@ -245,11 +245,19 @@ function createWindow() {
 
   // Save window bounds on move/resize (debounced)
   let boundsTimer = null;
+  // getNormalBounds() returns the un-maximized "restore" size — what we want to
+  // persist. getBounds() returns the *current* size, which when maximized (Windows
+  // snap, title-bar double-click, Win+Up) is the full work area; saving that made
+  // the window reopen pinned full-screen. Fall back to getBounds() on older Electron.
+  const normalBounds = () => (typeof mainWindow.getNormalBounds === 'function')
+    ? mainWindow.getNormalBounds()
+    : mainWindow.getBounds();
+
   const saveBounds = () => {
     if (boundsTimer) clearTimeout(boundsTimer);
     boundsTimer = setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized()) return;
-      const b = mainWindow.getBounds();
+      const b = normalBounds();
       const global = getSetting('global') || {};
       global.windowBounds = { x: b.x, y: b.y, width: b.width, height: b.height };
       setSetting('global', global);
@@ -260,13 +268,17 @@ function createWindow() {
 
   // Returning to the app while viewing a session acknowledges its pending alert,
   // so the dock badge clears for the session you're now actually looking at.
-  mainWindow.on('focus', () => clearSessionNotifications(notifyActiveSessionId));
+  mainWindow.on('focus', () => {
+    clearSessionNotifications(notifyActiveSessionId);
+    // Stop any taskbar flash / dock bounce once the user is back on the window.
+    try { mainWindow.flashFrame(false); } catch {}
+  });
 
   // Also save immediately before close (debounce may not have flushed)
   mainWindow.on('close', () => {
     if (boundsTimer) clearTimeout(boundsTimer);
     if (!mainWindow.isMinimized()) {
-      const b = mainWindow.getBounds();
+      const b = normalBounds();
       const global = getSetting('global') || {};
       global.windowBounds = { x: b.x, y: b.y, width: b.width, height: b.height };
       setSetting('global', global);
@@ -596,6 +608,9 @@ function notifySessionAttention(sessionId) {
   notifyAttention.add(sessionId);
   log.info(`[notify] attention session=${sessionId}`);
   showOsNotification(`${notifyLabelFor(sessionId)} needs your attention`, sessionId);
+  // Flash the taskbar (Windows) / bounce the dock (macOS) so an attention prompt
+  // is noticed even when the user has alt-tabbed away. Cleared on window focus.
+  try { if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) mainWindow.flashFrame(true); } catch {}
   refreshDockBadge();
 }
 function notifySessionFinished(sessionId) {
@@ -1188,11 +1203,21 @@ ipcMain.handle('search', (_event, type, query, titleOnly) => {
 });
 
 // --- IPC: settings ---
+// The renderer may only read/write settings whose key matches this allowlist
+// (the only keys it actually uses). Prevents a compromised renderer from
+// stomping on internal keys should any be added later.
+const SETTING_KEY_RE = /^(global|searchTitlesOnly|project:.+)$/;
+function isAllowedSettingKey(key) {
+  return typeof key === 'string' && key.length <= 4096 && SETTING_KEY_RE.test(key);
+}
+
 ipcMain.handle('get-setting', (_event, key) => {
+  if (!isAllowedSettingKey(key)) return null;
   return getSetting(key);
 });
 
 ipcMain.handle('set-setting', (_event, key, value) => {
+  if (!isAllowedSettingKey(key)) return { ok: false, error: 'setting key not allowed' };
   const prevLang = key === 'global' ? ((getSetting('global') || {}).language) : undefined;
   setSetting(key, value);
   // Rebuild the native menu in the new language when it changes.
@@ -1203,6 +1228,7 @@ ipcMain.handle('set-setting', (_event, key, value) => {
 });
 
 ipcMain.handle('delete-setting', (_event, key) => {
+  if (!isAllowedSettingKey(key)) return { ok: false, error: 'setting key not allowed' };
   deleteSetting(key);
   return { ok: true };
 });
