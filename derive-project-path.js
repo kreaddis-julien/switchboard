@@ -95,10 +95,9 @@ function extractCwdFromJsonl(filePath, folderBasename) {
 function resolveWorktreePath(cwd) {
   if (!cwd) return cwd;
   // Detect worktree paths: <project>/.claude-worktrees/<name>, <project>/.worktrees/<name>,
-  // <project>/.claude/worktrees/<name>, or <project>/.switchboard/worktrees/<name>
-  // (Agent Teams task worktrees) — re-attributed to the parent project so the
-  // run's worker/reviewer sessions group with it, not a phantom project.
-  const worktreeMatch = cwd.match(/^(.+?)\/\.(?:claude\/worktrees|claude-worktrees|worktrees|switchboard\/worktrees)\/[^/]+\/?$/);
+  // or <project>/.claude/worktrees/<name> — re-attributed to the parent project
+  // so the worktree's sessions group with it, not a phantom project.
+  const worktreeMatch = cwd.match(/^(.+?)\/\.(?:claude\/worktrees|claude-worktrees|worktrees)\/[^/]+\/?$/);
   if (worktreeMatch) {
     const parent = worktreeMatch[1];
     if (fs.existsSync(parent)) return parent;

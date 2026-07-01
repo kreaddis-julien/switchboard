@@ -50,7 +50,7 @@ function shellEscape(path) {
 
 // Sanitize then set innerHTML via DOMPurify (bundled with codemirror-bundle.js).
 // Falls back to textContent if DOMPurify hasn't loaded, so we never render
-// unsanitized HTML. Used by the Agent Teams view to render plan markdown.
+// unsanitized HTML. Used to render plan markdown.
 function safeSetHtml(el, html) {
   if (!el) return;
   const src = String(html ?? '');

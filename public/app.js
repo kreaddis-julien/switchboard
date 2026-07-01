@@ -28,7 +28,6 @@ const sessionFilters = document.getElementById('session-filters');
 const searchBar = document.getElementById('search-bar');
 const statsContent = document.getElementById('stats-content');
 const memoryContent = document.getElementById('memory-content');
-const teamsContent = document.getElementById('teams-content');
 const statsViewer = document.getElementById('stats-viewer');
 const statsViewerBody = document.getElementById('stats-viewer-body');
 const memoryViewer = document.getElementById('memory-viewer');
@@ -1148,7 +1147,6 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
     plansContent.style.display = 'none';
     statsContent.style.display = 'none';
     memoryContent.style.display = 'none';
-    if (teamsContent) teamsContent.style.display = 'none';
     sessionFilters.style.display = 'none';
     searchBar.style.display = 'none';
 
@@ -1197,19 +1195,6 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
       searchInput.placeholder = 'Search agent files...';
       memoryContent.style.display = '';
       loadMemories();
-    } else if (tabName === 'teams') {
-      // Agent Teams (experimental): sidebar lists runs; orch-viewer (managed by
-      // orchestration-view.js) shows the selected run's board in the main area.
-      if (teamsContent) teamsContent.style.display = '';
-      placeholder.style.display = 'none';
-      terminalArea.style.display = 'none';
-      planViewer.style.display = 'none';
-      memoryViewer.style.display = 'none';
-      settingsViewer.style.display = 'none';
-      statsViewer.style.display = 'none';
-      jsonlViewer.style.display = 'none';
-      if (typeof loadTeams === 'function') loadTeams();
-      if (typeof renderOrchPlaceholder === 'function') renderOrchPlaceholder();
     }
   });
 });

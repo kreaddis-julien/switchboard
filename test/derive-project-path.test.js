@@ -106,7 +106,7 @@ test('re-attributes a worktree cwd to its parent project', () => {
   try {
     const parent = path.join(projectsDir, 'proj');
     fs.mkdirSync(parent, { recursive: true });
-    const worktree = path.join(parent, '.switchboard', 'worktrees', 'run-1--T-001');
+    const worktree = path.join(parent, '.claude', 'worktrees', 'wt-001');
     const folderName = encode(worktree);
     writeSessionWithCwds(projectsDir, folderName, [worktree]);
     // resolveWorktreePath collapses the worktree path back to the parent project.

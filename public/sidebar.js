@@ -16,12 +16,10 @@ let _subagentsByParent = new Map();
 
 // The parent row a session should nest under instead of being shown as a peer:
 //   - subagent transcripts (sub:<parent>:<id>) -> their parent session
-//   - Agent Teams worker/reviewer sessions (orchParent set by main) -> the run master
 // Returns null for top-level sessions.
 function nestParentOf(s) {
   if (!s || !s.sessionId) return null;
   if (s.sessionId.startsWith('sub:') && s.parentSessionId) return s.parentSessionId;
-  if (s.orchParent) return s.orchParent;
   return null;
 }
 

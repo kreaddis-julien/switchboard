@@ -7,12 +7,6 @@ const pty = require('node-pty');
 const log = require('electron-log');
 // getFolderIndexMtimeMs moved to session-cache.js
 const { appendToOutputBuffer, MAX_BUFFER_SIZE } = require('./output-buffer');
-// Agent Teams (prototype): session profiles + orchestration. orchModule is
-// assigned in app.whenReady once the spawn deps exist.
-const profilesModule = require('./profiles');
-const sessionProfiles = require('./session-profiles');
-const { addAllowedRoot } = require('./path-guard');
-let orchModule = null;
 const { startMcpServer, shutdownMcpServer, shutdownAll: shutdownAllMcp, resolvePendingDiff, rekeyMcpServer, cleanStaleLockFiles } = require('./mcp-bridge');
 const { fetchAndTransformUsage } = require('./claude-auth');
 log.transports.file.level = app.isPackaged ? 'info' : 'debug';
@@ -720,20 +714,6 @@ ipcMain.handle('get-projects', async (_event, showArchived) => {
     // so it's cheap when nothing has changed.
     reconcileCacheFromFilesystem();
     const projects = buildProjectsFromCache(showArchived);
-    // Seed the path-guard allowlist with every known project root so Agent
-    // Teams (orch:create-run / watch-projects) can operate on any project the
-    // sidebar shows. The guard otherwise starts empty -> "project not allowed".
-    // Also annotate orch worker/reviewer sessions with their run's master id
-    // (s.orchParent) so the sidebar nests them under the master row.
-    const orchProto = require('./orch-protocol');
-    for (const p of projects) {
-      if (!p || !p.projectPath) continue;
-      try { addAllowedRoot(p.projectPath); } catch {}
-      try {
-        const masters = orchProto.sessionMasters(p.projectPath);
-        for (const s of (p.sessions || [])) { const m = masters[s.sessionId]; if (m) s.orchParent = m; }
-      } catch {}
-    }
     return projects;
   } catch (err) {
     console.error('Error listing projects:', err);
@@ -1236,9 +1216,6 @@ const SETTING_DEFAULTS = {
   mcpEmulation: false,
   shellProfile: 'auto',
   language: 'en',   // interface language ('en' | 'fr'); see public/i18n.js
-  // Agent Teams: secure-by-default data-egress policy. When false, worker
-  // profiles may only point at Anthropic or a loopback address (see profiles.js).
-  agentTeamsAllowExternalModels: false,
 };
 
 ipcMain.handle('get-shell-profiles', () => {
@@ -1437,10 +1414,9 @@ ipcMain.handle('delete-session', (_event, sessionId, folder) => {
 });
 
 // --- IPC: open-terminal ---
-// Extracted from the 'open-terminal' IPC handler so Agent Teams (orch-ipc /
-// orch-spawner) can spawn sessions through the EXACT same path as the renderer.
-// _event was never used in the body, so the extraction is behaviour-preserving;
-// the IPC handler below just delegates.
+// The spawn logic lives in this standalone function (rather than inline in the
+// IPC handler) so it can be called directly as well as over IPC. _event was
+// never used in the body; the IPC handler below just delegates.
 async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
   if (!mainWindow) return { ok: false, error: 'no window' };
 
@@ -1624,10 +1600,10 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
         }
       }
 
-      // Initial user prompt (Agent Teams kickoff, e.g. "/sb-plan <run> <goal>").
-      // Passed as claude's positional [prompt] arg so a FRESH interactive session
-      // starts working on it immediately — no seed+resume needed. Must be LAST
-      // (after --ide) and shell-escaped via quoteArgvForShell.
+      // Optional initial user prompt, passed as claude's positional [prompt] arg
+      // so a FRESH interactive session starts working on it immediately — no
+      // seed+resume needed. Must be LAST (after --ide) and shell-escaped via
+      // quoteArgvForShell.
       if (sessionOptions?.initialPrompt) {
         claudeCmd += ' ' + quoteArgvForShell(shell, [String(sessionOptions.initialPrompt)]);
       }
@@ -1639,36 +1615,6 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
       };
       if (mcpServer) {
         ptyEnv.CLAUDE_CODE_SSE_PORT = String(mcpServer.port);
-      }
-
-      // Session profile: merge the profile's env (model/endpoint overrides) into
-      // the pty env. $VAR refs are resolved against the host env; unresolved refs
-      // are dropped (never leaked as literals). Used by Agent Teams to point a
-      // worker session at Claude Haiku or a local model.
-      try {
-        const profile = profilesModule.pickProfileForSession(sessionOptions?.profileId);
-        if (profile) {
-          Object.assign(ptyEnv, profilesModule.resolveEnv(profile.env));
-          sessionProfiles.recordSessionProfile(sessionId, profile.id);
-        } else if (sessionOptions?.profileId === 'none') {
-          sessionProfiles.recordSessionProfile(sessionId, null);
-        }
-      } catch (err) {
-        log.error(`[profiles] Failed to apply profile: ${err.message}`);
-      }
-
-      // Agent Teams: experimental multi-agent coordination. Standard sub-agents
-      // (Task tool) are always enabled — this only gates the experimental teams
-      // feature, and only for sessions explicitly launched with it.
-      if (sessionOptions?.agentTeams) {
-        ptyEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
-        // Marker for a user's PreToolUse guardrail (e.g. check-readonly.sh): claude
-        // owns the CLAUDE_* namespace and may consume/drop the experimental flag
-        // before spawning hook subprocesses, so a hook can't reliably key off it.
-        // This SWITCHBOARD_* var is never touched by claude → it reaches hooks,
-        // which use it to waive the read-only confirmation for the autonomous local
-        // writes orchestrated sessions make (protocol files, worktree edits, commits).
-        ptyEnv.SWITCHBOARD_AGENT_TEAMS = '1';
       }
 
       ptyProcess = pty.spawn(shell, shellArgs(shell, claudeCmd, shellExtraArgs), {
@@ -2164,37 +2110,6 @@ app.whenReady().then(() => {
 
   scheduleIpc.init(log, runScheduleCommand);
   startScheduler(log, runScheduleCommand);
-
-  // --- Agent Teams (experimental prototype) ---
-  // Profiles (with the data-egress guard) + session-profile persistence + the
-  // orchestration IPC. Sessions spawned by the orchestrator go through
-  // openTerminalImpl, so they behave exactly like user-opened terminals
-  // (profiles, buffering, busy detection). Gated per-session by the agentTeams
-  // flag; the egress guard reads agentTeamsAllowExternalModels (default false).
-  try {
-    profilesModule.init(log, () => !!(getSetting('global') || {}).agentTeamsAllowExternalModels);
-    sessionProfiles.init(log);
-    try { require('./orch-bootstrap').ensureClaudeAssets({ log }); }
-    catch (err) { log.error(`[orch] bootstrap failed: ${err.message}`); }
-    orchModule = require('./orch-ipc').init(log, {
-      openTerminal: openTerminalImpl,
-      sendInput: (sessionId, text) => {
-        const session = activeSessions.get(sessionId);
-        if (!session || session.exited) return false;
-        try { session.pty.write(text); return true; } catch { return false; }
-      },
-      isSessionActive: (sessionId) => {
-        const session = activeSessions.get(sessionId);
-        return !!session && !session.exited;
-      },
-      isSessionBusy: (sessionId) => !!activeSessions.get(sessionId)?._cliBusy,
-      getMainWindow: () => mainWindow,
-      // runValidation (phase-gate runner) intentionally omitted in this proto:
-      // orch-spawner skips gates when deps.runValidation is absent. To add later.
-    });
-  } catch (err) {
-    log.error(`[orch] Agent Teams init failed: ${err.message}`);
-  }
 
   // Full cache rebuild on every startup — prunes stale rows for deleted
   // transcripts (sub-agent/workflow runs cleaned up between sessions leave
