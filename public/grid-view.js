@@ -63,6 +63,10 @@ function wrapInGridCard(sessionId) {
   card.appendChild(header);
   entry.element.classList.add('visible', 'grid-mode');
   card.appendChild(entry.element);
+  // Drain any data that accumulated while this session was non-visible — after
+  // classList.add (isSessionVisible true) and appendChild (element in DOM so the
+  // xterm write callback's scrollToBottom targets the attached element).
+  drainReplayBuffer(sessionId);
   card.appendChild(footer);
 
   // Insert card into the correct project group in the grid
