@@ -1316,19 +1316,43 @@ ipcMain.handle('rename-session', (_event, sessionId, name) => {
   return { name: name || null };
 });
 
+// Cap transcript reads: a long Claude session's .jsonl can reach hundreds of MB
+// (verbose tool output, base64 screenshots). Reading it whole would spike main
+// RSS and the renderer renders every entry synchronously, freezing the UI.
+// Beyond the cap we keep the MOST RECENT bytes (tail) and drop the partial first
+// line; callers get `truncated: true` so the viewer can note it.
+const MAX_JSONL_READ_BYTES = 25 * 1024 * 1024; // 25 MB
+function parseJsonlCapped(jsonlPath) {
+  let content, truncated = false;
+  const size = fs.statSync(jsonlPath).size;
+  if (size > MAX_JSONL_READ_BYTES) {
+    const fd = fs.openSync(jsonlPath, 'r');
+    try {
+      const buf = Buffer.alloc(MAX_JSONL_READ_BYTES);
+      fs.readSync(fd, buf, 0, MAX_JSONL_READ_BYTES, size - MAX_JSONL_READ_BYTES);
+      content = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+    const nl = content.indexOf('\n'); // drop the partial first line
+    content = nl !== -1 ? content.slice(nl + 1) : content;
+    truncated = true;
+  } else {
+    content = fs.readFileSync(jsonlPath, 'utf-8');
+  }
+  const entries = [];
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    try { entries.push(JSON.parse(line)); } catch {}
+  }
+  return { entries, truncated };
+}
+
 // --- IPC: archive-session ---
 ipcMain.handle('read-session-jsonl', (_event, sessionId) => {
   const folder = getCachedFolder(sessionId);
   if (!folder) return { error: 'Session not found in cache' };
   const jsonlPath = path.join(PROJECTS_DIR, folder, sessionId + '.jsonl');
   try {
-    const content = fs.readFileSync(jsonlPath, 'utf-8');
-    const entries = [];
-    for (const line of content.split('\n')) {
-      if (!line.trim()) continue;
-      try { entries.push(JSON.parse(line)); } catch {}
-    }
-    return { entries };
+    return parseJsonlCapped(jsonlPath);
   } catch (err) {
     return { error: err.message };
   }
@@ -1368,13 +1392,7 @@ ipcMain.handle('read-subagent-jsonl', (_event, parentSessionId, agentId) => {
   if (!row) return { error: 'Subagent session not found in cache' };
   const jsonlPath = path.join(PROJECTS_DIR, row.folder, parentSessionId, 'subagents', 'agent-' + agentId + '.jsonl');
   try {
-    const content = fs.readFileSync(jsonlPath, 'utf-8');
-    const entries = [];
-    for (const line of content.split('\n')) {
-      if (!line.trim()) continue;
-      try { entries.push(JSON.parse(line)); } catch {}
-    }
-    return { entries };
+    return parseJsonlCapped(jsonlPath);
   } catch (err) {
     return { error: err.message };
   }

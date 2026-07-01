@@ -347,6 +347,10 @@ window.api.onSessionDetected((tempId, realId) => {
   openSessions.delete(tempId);
   openSessions.set(realId, entry);
 
+  // Re-key terminal-manager buffers/LRU so buffered output isn't dropped and
+  // lruOrder doesn't keep the dead temp id (one leaks per new session otherwise).
+  if (typeof rekeyTerminalState === 'function') rekeyTerminalState(tempId, realId);
+
   terminalHeaderId.textContent = realId;
   terminalHeaderName.textContent = t('app.new_session');
 
@@ -370,6 +374,9 @@ window.api.onSessionForked((oldId, newId) => {
 
   openSessions.delete(oldId);
   openSessions.set(newId, entry);
+
+  // Re-key terminal-manager buffers/LRU (module-local maps app.js can't see).
+  if (typeof rekeyTerminalState === 'function') rekeyTerminalState(oldId, newId);
 
   // Re-key file panel state for the new session ID
   if (typeof rekeyFilePanelState === 'function') rekeyFilePanelState(oldId, newId);
@@ -895,6 +902,13 @@ async function loadProjects({ resort = false } = {}) {
     const realExists = allProjects.some(p => p.sessions.some(s => s.sessionId === sid));
     if (realExists) {
       pendingSessions.delete(sid);
+    } else if (!openSessions.has(sid)) {
+      // No live/mounted terminal and no real .jsonl ever appeared — a dead
+      // phantom (e.g. a launch that failed before writing any transcript).
+      // Drop it instead of re-injecting forever. While the terminal is still
+      // mounted (including closed-with-banner, for relaunch) the row is kept;
+      // once LRU eviction removes the entry, this reaps the pending record.
+      pendingSessions.delete(sid);
     } else {
       hasReinjected = true;
       // Still pending — re-inject into cached data
@@ -1058,14 +1072,19 @@ async function showTerminalHeader(session) {
     };
   }
 
-  // Show active shell profile
+  // Show active shell profile. Guard against a session switch landing mid-await
+  // (two awaits below) — otherwise session A's shell label can overwrite the
+  // header while session B is already shown.
+  const shellSid = session.sessionId;
   try {
     const effective = await window.api.getEffectiveSettings(session.projectPath);
+    if (activeSessionId !== shellSid) return;
     const profileId = effective.shellProfile || 'auto';
     if (profileId === 'auto') {
       terminalHeaderShell.style.display = 'none';
     } else {
       const profiles = await window.api.getShellProfiles();
+      if (activeSessionId !== shellSid) return;
       const profile = profiles.find(p => p.id === profileId);
       terminalHeaderShell.textContent = profile ? profile.name : profileId;
       terminalHeaderShell.style.display = '';

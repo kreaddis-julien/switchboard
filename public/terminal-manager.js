@@ -569,6 +569,31 @@ function restoreTerminalWebgl(sessionId) {
   if (entry) loadTerminalWebgl(entry);
 }
 
+// Re-key the terminal-manager per-session state when a session's id changes
+// (temp id -> real id on detect, or fork). app.js re-keys openSessions/sessionMap
+// but these module-local maps are invisible to it; without this, a pending write
+// buffer flushes under the old id (openSessions miss -> dropped output) and
+// lruOrder keeps a dead id (one per new session), silently degrading the WebGL
+// LRU cap. Move the write buffer with its timers cancelled and re-armed under the
+// new id (a stale rafId left on the buffer would freeze scheduleFlush forever).
+function rekeyTerminalState(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return;
+  const buf = terminalWriteBuffers.get(oldId);
+  if (buf) {
+    cancelAnimationFrame(buf.rafId);
+    clearTimeout(buf.timerId);
+    buf.rafId = 0; buf.timerId = 0;
+    terminalWriteBuffers.delete(oldId);
+    terminalWriteBuffers.set(newId, buf);
+    if (buf.chunks && buf.chunks.length) scheduleFlush(newId, buf);
+  }
+  for (const map of [lastFlushAt, rawReplayBuffers]) {
+    if (map.has(oldId)) { map.set(newId, map.get(oldId)); map.delete(oldId); }
+  }
+  const li = lruOrder.indexOf(oldId);
+  if (li !== -1) lruOrder[li] = newId;
+}
+
 // Clean up a closed session entry (dispose terminal, remove DOM, remove from maps).
 function destroySession(sessionId) {
   const entry = openSessions.get(sessionId);

@@ -126,12 +126,17 @@ function wrapInGridCard(sessionId) {
     focusGridCard(sessionId);
   });
 
-  // Clicking/focusing the terminal area also selects the card
-  entry.element.addEventListener('focusin', () => {
-    if (gridViewActive && gridFocusedSessionId !== sessionId) {
-      focusGridCard(sessionId);
-    }
-  });
+  // Clicking/focusing the terminal area also selects the card. entry.element is
+  // the persistent terminal-container reused across grid enter/exit cycles, so
+  // bind the listener once — re-adding it on every wrap leaked a handler per cycle.
+  if (!entry.element._gridFocusinBound) {
+    entry.element._gridFocusinBound = true;
+    entry.element.addEventListener('focusin', () => {
+      if (gridViewActive && gridFocusedSessionId !== entry.session.sessionId) {
+        focusGridCard(entry.session.sessionId);
+      }
+    });
+  }
 
   gridCards.set(sessionId, card);
   if (gridCardObserver) gridCardObserver.observe(card);
