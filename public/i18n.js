@@ -95,11 +95,6 @@
       'worktree.hide': 'Hide worktree',
       'worktree.delete': 'Delete worktree from disk',
       'worktree.new_session': 'New session in worktree',
-      // session-health
-      'health.marathon-risk': 'Marathon Risk',
-      'health.handoff-recommended': 'Handoff Recommended',
-      'health.healthy': 'Healthy',
-      'health.growing': 'Growing',
       // session / project dialogs (dialogs.js)
       'dlg.perm_mode': 'Permission Mode',
       'perm.default': 'Default', 'perm.default_d': 'Prompt for all actions',
@@ -200,8 +195,7 @@
       'sc.nav_label': 'Navigate sessions / grid', 'sc.nav_desc': 'Move between sessions (single view) or between cells (grid view)',
       'sc.prevnext_label': 'Previous / next session', 'sc.prevnext_desc': 'Cycle to the previous or next session',
       'sc.grid_label': 'Toggle grid view', 'sc.grid_desc': 'Show or hide the session grid overview',
-      // session-health reasons (tooltip), grid + jsonl viewer
-      'health.r.user_turns': '{n} user turns', 'health.r.entries': '{n} entries', 'health.r.active_time': '{n} active time', 'health.r.cache_read': '{n} cache-read tokens', 'health.r.big_paste': '{n} words in largest prompt',
+      // grid + jsonl viewer
       'grid.other': 'Other',
       'jsonl.input': 'Input', 'jsonl.content': 'Content', 'jsonl.output': 'Output', 'jsonl.thinking': 'Thinking',
     },
@@ -269,10 +263,6 @@
       'worktree.hide': 'Masquer le worktree',
       'worktree.delete': 'Supprimer le worktree du disque',
       'worktree.new_session': 'Nouvelle session dans le worktree',
-      'health.marathon-risk': 'Risque marathon',
-      'health.handoff-recommended': 'Passation recommandée',
-      'health.healthy': 'En bonne santé',
-      'health.growing': 'En croissance',
       'dlg.perm_mode': 'Mode de permission',
       'perm.default': 'Par défaut', 'perm.default_d': 'Demander pour toutes les actions',
       'perm.accept': 'Accepter les éditions', 'perm.accept_d': 'Accepter auto les éditions de fichiers, demander le reste',
@@ -363,7 +353,6 @@
       'sc.nav_label': 'Naviguer sessions / grille', 'sc.nav_desc': 'Se déplacer entre sessions (vue simple) ou entre cellules (vue grille)',
       'sc.prevnext_label': 'Session précédente / suivante', 'sc.prevnext_desc': 'Passer à la session précédente ou suivante',
       'sc.grid_label': 'Basculer la vue grille', 'sc.grid_desc': 'Afficher ou masquer la vue grille des sessions',
-      'health.r.user_turns': '{n} tours utilisateur', 'health.r.entries': '{n} entrées', 'health.r.active_time': '{n} de temps actif', 'health.r.cache_read': '{n} tokens de cache lus', 'health.r.big_paste': '{n} mots dans le plus gros prompt',
       'grid.other': 'Autres',
       'jsonl.input': 'Entrée', 'jsonl.content': 'Contenu', 'jsonl.output': 'Sortie', 'jsonl.thinking': 'Réflexion',
     },

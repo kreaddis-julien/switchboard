@@ -175,8 +175,8 @@ const migrations = [
     try { db.exec('VACUUM'); } catch {}
     searchFtsRecreated = true;
   },
-  // v8: Session-shape metrics for the health/handoff insight (session-health.js):
-  // user-turn count, largest single user prompt (words), active span (minutes),
+  // v8: Session-shape metrics: user-turn count, largest single user prompt
+  // (words), active span (minutes),
   // and first/last entry timestamps. Add only MISSING columns (PRAGMA-checked, as
   // in v5) so a real ALTER failure aborts before db_version bumps. The cache is
   // re-indexed on this boot anyway (v7 set searchFtsRecreated -> full repopulate),

@@ -72,9 +72,8 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
     // message.usage; tool calls / subagent (Task) invocations from tool_use blocks.
     let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
     let toolCalls = 0, subagentInvocations = 0, model = null;
-    // Session-shape metrics for the health/handoff insight (session-health.js):
-    // count of user turns, the largest single user prompt (word count), and the
-    // first/last entry timestamps to derive the active span.
+    // Session-shape metrics: count of user turns, the largest single user prompt
+    // (word count), and the first/last entry timestamps to derive the active span.
     let userMessageCount = 0, largestUserPromptWords = 0;
     let startedAt = null, lastEntryAt = null;
     for (const line of lines) {

@@ -1157,26 +1157,6 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
 }
 
-/* --- Session-health badge (only shown for warn states) --- */
-/* Discreet health indicator: a small dot on the title row (left of the time).
-   Full label + crossed thresholds in the tooltip. A faint ring lifts it off the
-   row without shouting like the old full-width pill. */
-.session-health {
-  flex: none;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  align-self: center;
-  /* hide any text content, keep the dot purely visual (tooltip carries meaning) */
-  font-size: 0; line-height: 0; overflow: hidden;
-}
-.session-health.health-marathon-risk {
-  background: var(--amber);
-  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.16);
-}
-.session-health.health-handoff-recommended {
-  background: var(--warn);
-  box-shadow: 0 0 0 3px rgb(var(--warn-rgb) / 0.16);
-}
 /* L'heure reste visible au survol (le bouton "..." apparait a sa droite). */
 
 /* ===== Brand header sidebar (mark orange + Switchboard) ===== */

@@ -951,27 +951,6 @@ function buildSessionItem(session) {
   }
   info.appendChild(summaryEl);
 
-  // Session-health badge — only flag sessions that warrant attention
-  // (marathon-risk / handoff-recommended). Healthy/growing show nothing to keep
-  // the dense sidebar uncluttered. Reasons (which thresholds were crossed) go in
-  // the tooltip. Guarded so a missing module never breaks the row.
-  // Rendered as a small coloured dot on the title row (left of the time), not a
-  // full-width pill — the label + which thresholds were crossed live in the
-  // tooltip, so the title stays the dominant element and the list stays calm.
-  let healthEl = null;
-  if (typeof getSessionHealth === 'function' && session.type !== 'terminal') {
-    const health = getSessionHealth(session);
-    if (health && health.shouldWarn) {
-      healthEl = document.createElement('span');
-      healthEl.className = 'session-health ' + health.className;
-      // Localised label via the stable className key (health-<x> -> health.<x>);
-      // reason details still come from session-health.js (English for now).
-      const label = t('health.' + health.className.replace('health-', ''));
-      const reasons = (health.reasons || []).map((r) => r.label).join(' · ');
-      healthEl.title = reasons ? label + ': ' + reasons : label;
-      healthEl.setAttribute('aria-label', label);
-    }
-  }
 
   row.title = timeStr + (session.messageCount ? ' · ' + session.messageCount + ' msgs' : '');
 
@@ -1066,7 +1045,6 @@ function buildSessionItem(session) {
   row.appendChild(pin);
   row.appendChild(dot);
   row.appendChild(info);
-  if (healthEl) row.appendChild(healthEl);
   row.appendChild(metaEl);
   row.appendChild(menuBtn);
   item.appendChild(row);

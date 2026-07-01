@@ -349,8 +349,7 @@ function buildProjectsFromCache(showArchived) {
       name: meta?.name || null,
       starred: meta?.starred || 0,
       archived: meta?.archived || 0,
-      // Session-health insight inputs (session-health.js): exposed to the
-      // renderer so the sidebar can flag marathon-risk / handoff-recommended.
+      // Session-shape metrics exposed to the renderer (stats, session rows).
       cacheReadTokens: row.cacheReadTokens || 0,
       userMessageCount: row.userMessageCount || 0,
       largestUserPromptWords: row.largestUserPromptWords || 0,
