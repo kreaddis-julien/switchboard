@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { encodeProjectPath } = require('./encode-project-path');
 
 // cwd sits in the first lines, but the leading line(s) (queue-operation /
 // attachment entries with pasted content) can be tens of KB, so read a generous
@@ -9,16 +10,21 @@ const path = require('path');
 const CWD_HEAD_CAP = 256 * 1024;
 
 // Claude Code buckets transcripts under ~/.claude/projects/<encoded-cwd>/, where
-// <encoded-cwd> is the session's STARTUP cwd with every "/" and "." replaced by
-// "-" (verified against the on-disk folder names). `claude --resume <id>` only
-// finds the transcript when launched from that same startup cwd, so the project
-// path we want is the recorded cwd whose encoding matches the folder name — NOT
-// merely the first cwd seen (which drifts when the session `cd`s around) nor the
-// most frequent one (a busy worktree/subdir can dominate while the resumable
-// startup cwd is a minority). We fall back to the dominant cwd only when nothing
-// encodes back to the folder (e.g. a renamed/moved folder, or a test fixture).
+// <encoded-cwd> is the session's STARTUP cwd encoded by the CLI's folder rule
+// (every non-alphanumeric char -> "-"; verified against the on-disk folder names
+// and the CLI 2.1.197 binary). `claude --resume <id>` only finds the transcript
+// when launched from that same startup cwd, so the project path we want is the
+// recorded cwd whose encoding matches the folder name — NOT merely the first cwd
+// seen (which drifts when the session `cd`s around) nor the most frequent one (a
+// busy worktree/subdir can dominate while the resumable startup cwd is a minority).
+// We fall back to the dominant cwd only when nothing encodes back to the folder.
+//
+// Uses the shared encodeProjectPath so the derive rule can never drift from the
+// create rule (main.js) again: the previous "/" + "." only variant failed to match
+// folders for paths containing "_", spaces, or parentheses (the CLI maps those to
+// "-" too), silently falling back to the dominant-cwd heuristic for such projects.
 function encodeProjectFolder(cwd) {
-  return cwd.replace(/[/.]/g, '-');
+  return encodeProjectPath(cwd);
 }
 
 // Tally every cwd occurrence in raw JSONL text via regex (far cheaper than
@@ -95,10 +101,9 @@ function extractCwdFromJsonl(filePath, folderBasename) {
 function resolveWorktreePath(cwd) {
   if (!cwd) return cwd;
   // Detect worktree paths: <project>/.claude-worktrees/<name>, <project>/.worktrees/<name>,
-  // <project>/.claude/worktrees/<name>, or <project>/.switchboard/worktrees/<name>
-  // (Agent Teams task worktrees) — re-attributed to the parent project so the
-  // run's worker/reviewer sessions group with it, not a phantom project.
-  const worktreeMatch = cwd.match(/^(.+?)\/\.(?:claude\/worktrees|claude-worktrees|worktrees|switchboard\/worktrees)\/[^/]+\/?$/);
+  // or <project>/.claude/worktrees/<name> — re-attributed to the parent project
+  // so the worktree's sessions group with it, not a phantom project.
+  const worktreeMatch = cwd.match(/^(.+?)\/\.(?:claude\/worktrees|claude-worktrees|worktrees)\/[^/]+\/?$/);
   if (worktreeMatch) {
     const parent = worktreeMatch[1];
     if (fs.existsSync(parent)) return parent;

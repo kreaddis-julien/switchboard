@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, session, shell } = require('electron');
 const { Worker } = require('worker_threads');
 const path = require('path');
 const fs = require('fs');
@@ -7,12 +7,6 @@ const pty = require('node-pty');
 const log = require('electron-log');
 // getFolderIndexMtimeMs moved to session-cache.js
 const { appendToOutputBuffer, MAX_BUFFER_SIZE } = require('./output-buffer');
-// Agent Teams (prototype): session profiles + orchestration. orchModule is
-// assigned in app.whenReady once the spawn deps exist.
-const profilesModule = require('./profiles');
-const sessionProfiles = require('./session-profiles');
-const { addAllowedRoot } = require('./path-guard');
-let orchModule = null;
 const { startMcpServer, shutdownMcpServer, shutdownAll: shutdownAllMcp, resolvePendingDiff, rekeyMcpServer, cleanStaleLockFiles } = require('./mcp-bridge');
 const { fetchAndTransformUsage } = require('./claude-auth');
 log.transports.file.level = app.isPackaged ? 'info' : 'debug';
@@ -93,6 +87,59 @@ if (process.env.FORCE_UPDATER) {
     }
   });
 }
+
+// --- Update notifier (notify-only; no auto-install) ---
+// This fork ships UNSIGNED macOS builds (no Apple Developer ID), so real
+// auto-update (Squirrel.Mac) can't work — it requires a signed+notarized app.
+// Instead we read the fork's latest GitHub release and, when it's newer than the
+// running version, surface a dismissable "vX available — Download" banner that
+// opens the release page. Reading a public releases JSON needs no signing.
+const UPDATE_REPO = 'kreaddis-julien/switchboard';
+
+function isNewerVersion(remote, current) {
+  const a = String(remote).split('.').map(n => parseInt(n, 10) || 0);
+  const b = String(current).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
+function fetchLatestRelease() {
+  const https = require('https');
+  return new Promise((resolve, reject) => {
+    const req = https.get({
+      hostname: 'api.github.com',
+      path: `/repos/${UPDATE_REPO}/releases/latest`,
+      headers: { 'User-Agent': 'switchboard-app', 'Accept': 'application/vnd.github+json' },
+      timeout: 10000,
+    }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+  });
+}
+
+async function checkForUpdateNotification() {
+  try {
+    const rel = await fetchLatestRelease();
+    const tag = rel && rel.tag_name;
+    if (!tag) return;
+    const remote = String(tag).replace(/^v/, '');
+    if (isNewerVersion(remote, app.getVersion()) && mainWindow && !mainWindow.isDestroyed()) {
+      log.info(`[update-check] newer release available: v${remote}`);
+      mainWindow.webContents.send('updater-event', 'update-available', { version: remote, url: rel.html_url });
+    }
+  } catch (e) {
+    log.warn('[update-check] ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
 const {
   getMeta, getAllMeta, toggleStar, setName, setArchived,
   isCachePopulated, getAllCached, getCachedByFolder, getCachedByParent, getCachedFolder, getCachedSession, upsertCachedSessions, touchCachedModified,
@@ -125,6 +172,14 @@ const SENSITIVE_PATH_PATTERNS = [
   /[/\\]\.netrc$/i,
   /[/\\]\.docker[/\\]config\.json$/i,
   /[/\\]\.kube[/\\]config$/i,
+  // Claude's own OAuth token — the app's most sensitive local asset.
+  /[/\\]\.credentials\.json$/i,
+  /[/\\]\.claude[/\\]\.credentials/i,
+  // Private keys / package + shell secrets that can live outside ~/.ssh.
+  /[/\\]id_(?:rsa|ed25519|ecdsa|dsa)(?:\.pub)?$/i,
+  /[/\\]\.npmrc$/i,
+  /[/\\]\.pypirc$/i,
+  /[/\\]\.(?:bash|zsh)_history$/i,
 ];
 
 function isSensitivePath(filePath) {
@@ -141,15 +196,6 @@ function isAllowedMemoryPath(filePath) {
     if (session.projectPath && resolved.startsWith(session.projectPath + path.sep)) return true;
   }
   return false;
-}
-
-// --- Input sanitization for shell command arguments ---
-const SHELL_META_CHARS = /[;&|`$(){}!#\n\r]/;
-function validateShellArg(value, fieldName) {
-  if (!value) return;
-  if (SHELL_META_CHARS.test(value)) {
-    throw new Error(`${fieldName} contains invalid characters`);
-  }
 }
 
 // Active PTY sessions
@@ -251,11 +297,19 @@ function createWindow() {
 
   // Save window bounds on move/resize (debounced)
   let boundsTimer = null;
+  // getNormalBounds() returns the un-maximized "restore" size — what we want to
+  // persist. getBounds() returns the *current* size, which when maximized (Windows
+  // snap, title-bar double-click, Win+Up) is the full work area; saving that made
+  // the window reopen pinned full-screen. Fall back to getBounds() on older Electron.
+  const normalBounds = () => (typeof mainWindow.getNormalBounds === 'function')
+    ? mainWindow.getNormalBounds()
+    : mainWindow.getBounds();
+
   const saveBounds = () => {
     if (boundsTimer) clearTimeout(boundsTimer);
     boundsTimer = setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized()) return;
-      const b = mainWindow.getBounds();
+      const b = normalBounds();
       const global = getSetting('global') || {};
       global.windowBounds = { x: b.x, y: b.y, width: b.width, height: b.height };
       setSetting('global', global);
@@ -266,13 +320,17 @@ function createWindow() {
 
   // Returning to the app while viewing a session acknowledges its pending alert,
   // so the dock badge clears for the session you're now actually looking at.
-  mainWindow.on('focus', () => clearSessionNotifications(notifyActiveSessionId));
+  mainWindow.on('focus', () => {
+    clearSessionNotifications(notifyActiveSessionId);
+    // Stop any taskbar flash / dock bounce once the user is back on the window.
+    try { mainWindow.flashFrame(false); } catch {}
+  });
 
   // Also save immediately before close (debounce may not have flushed)
   mainWindow.on('close', () => {
     if (boundsTimer) clearTimeout(boundsTimer);
     if (!mainWindow.isMinimized()) {
-      const b = mainWindow.getBounds();
+      const b = normalBounds();
       const global = getSetting('global') || {};
       global.windowBounds = { x: b.x, y: b.y, width: b.width, height: b.height };
       setSetting('global', global);
@@ -533,6 +591,14 @@ ipcMain.handle('open-external', (_event, url) => {
   return openExternalOnce(url);
 });
 
+// --- IPC: clipboard write ---
+// The renderer's navigator.clipboard.writeText is gated on focus/user-activation and
+// is flaky-to-dead on Linux/Wayland (Ozone). The main-process clipboard has no such
+// strings attached, so all terminal copies go through here.
+ipcMain.handle('clipboard-write-text', (_event, text) => {
+  if (typeof text === 'string') clipboard.writeText(text);
+});
+
 // --- Native OS notifications + dock badge (decided in MAIN) ---
 // Notifications are decided and fired here, not in the renderer, so they land
 // even when the renderer is suspended — occluded, minimized, or (the common
@@ -594,6 +660,9 @@ function notifySessionAttention(sessionId) {
   notifyAttention.add(sessionId);
   log.info(`[notify] attention session=${sessionId}`);
   showOsNotification(`${notifyLabelFor(sessionId)} needs your attention`, sessionId);
+  // Flash the taskbar (Windows) / bounce the dock (macOS) so an attention prompt
+  // is noticed even when the user has alt-tabbed away. Cleared on window focus.
+  try { if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) mainWindow.flashFrame(true); } catch {}
   refreshDockBadge();
 }
 function notifySessionFinished(sessionId) {
@@ -720,20 +789,6 @@ ipcMain.handle('get-projects', async (_event, showArchived) => {
     // so it's cheap when nothing has changed.
     reconcileCacheFromFilesystem();
     const projects = buildProjectsFromCache(showArchived);
-    // Seed the path-guard allowlist with every known project root so Agent
-    // Teams (orch:create-run / watch-projects) can operate on any project the
-    // sidebar shows. The guard otherwise starts empty -> "project not allowed".
-    // Also annotate orch worker/reviewer sessions with their run's master id
-    // (s.orchParent) so the sidebar nests them under the master row.
-    const orchProto = require('./orch-protocol');
-    for (const p of projects) {
-      if (!p || !p.projectPath) continue;
-      try { addAllowedRoot(p.projectPath); } catch {}
-      try {
-        const masters = orchProto.sessionMasters(p.projectPath);
-        for (const s of (p.sessions || [])) { const m = masters[s.sessionId]; if (m) s.orchParent = m; }
-      } catch {}
-    }
     return projects;
   } catch (err) {
     console.error('Error listing projects:', err);
@@ -1200,11 +1255,21 @@ ipcMain.handle('search', (_event, type, query, titleOnly) => {
 });
 
 // --- IPC: settings ---
+// The renderer may only read/write settings whose key matches this allowlist
+// (the only keys it actually uses). Prevents a compromised renderer from
+// stomping on internal keys should any be added later.
+const SETTING_KEY_RE = /^(global|searchTitlesOnly|project:.+)$/;
+function isAllowedSettingKey(key) {
+  return typeof key === 'string' && key.length <= 4096 && SETTING_KEY_RE.test(key);
+}
+
 ipcMain.handle('get-setting', (_event, key) => {
+  if (!isAllowedSettingKey(key)) return null;
   return getSetting(key);
 });
 
 ipcMain.handle('set-setting', (_event, key, value) => {
+  if (!isAllowedSettingKey(key)) return { ok: false, error: 'setting key not allowed' };
   const prevLang = key === 'global' ? ((getSetting('global') || {}).language) : undefined;
   setSetting(key, value);
   // Rebuild the native menu in the new language when it changes.
@@ -1215,6 +1280,7 @@ ipcMain.handle('set-setting', (_event, key, value) => {
 });
 
 ipcMain.handle('delete-setting', (_event, key) => {
+  if (!isAllowedSettingKey(key)) return { ok: false, error: 'setting key not allowed' };
   deleteSetting(key);
   return { ok: true };
 });
@@ -1236,9 +1302,7 @@ const SETTING_DEFAULTS = {
   mcpEmulation: false,
   shellProfile: 'auto',
   language: 'en',   // interface language ('en' | 'fr'); see public/i18n.js
-  // Agent Teams: secure-by-default data-egress policy. When false, worker
-  // profiles may only point at Anthropic or a loopback address (see profiles.js).
-  agentTeamsAllowExternalModels: false,
+  restoreOnStartup: 'off',  // 'off' | 'ask' | 'auto' — reopen last session set at launch
 };
 
 ipcMain.handle('get-shell-profiles', () => {
@@ -1305,19 +1369,43 @@ ipcMain.handle('rename-session', (_event, sessionId, name) => {
   return { name: name || null };
 });
 
+// Cap transcript reads: a long Claude session's .jsonl can reach hundreds of MB
+// (verbose tool output, base64 screenshots). Reading it whole would spike main
+// RSS and the renderer renders every entry synchronously, freezing the UI.
+// Beyond the cap we keep the MOST RECENT bytes (tail) and drop the partial first
+// line; callers get `truncated: true` so the viewer can note it.
+const MAX_JSONL_READ_BYTES = 25 * 1024 * 1024; // 25 MB
+function parseJsonlCapped(jsonlPath) {
+  let content, truncated = false;
+  const size = fs.statSync(jsonlPath).size;
+  if (size > MAX_JSONL_READ_BYTES) {
+    const fd = fs.openSync(jsonlPath, 'r');
+    try {
+      const buf = Buffer.alloc(MAX_JSONL_READ_BYTES);
+      fs.readSync(fd, buf, 0, MAX_JSONL_READ_BYTES, size - MAX_JSONL_READ_BYTES);
+      content = buf.toString('utf8');
+    } finally { fs.closeSync(fd); }
+    const nl = content.indexOf('\n'); // drop the partial first line
+    content = nl !== -1 ? content.slice(nl + 1) : content;
+    truncated = true;
+  } else {
+    content = fs.readFileSync(jsonlPath, 'utf-8');
+  }
+  const entries = [];
+  for (const line of content.split('\n')) {
+    if (!line.trim()) continue;
+    try { entries.push(JSON.parse(line)); } catch {}
+  }
+  return { entries, truncated };
+}
+
 // --- IPC: archive-session ---
 ipcMain.handle('read-session-jsonl', (_event, sessionId) => {
   const folder = getCachedFolder(sessionId);
   if (!folder) return { error: 'Session not found in cache' };
   const jsonlPath = path.join(PROJECTS_DIR, folder, sessionId + '.jsonl');
   try {
-    const content = fs.readFileSync(jsonlPath, 'utf-8');
-    const entries = [];
-    for (const line of content.split('\n')) {
-      if (!line.trim()) continue;
-      try { entries.push(JSON.parse(line)); } catch {}
-    }
-    return { entries };
+    return parseJsonlCapped(jsonlPath);
   } catch (err) {
     return { error: err.message };
   }
@@ -1357,13 +1445,7 @@ ipcMain.handle('read-subagent-jsonl', (_event, parentSessionId, agentId) => {
   if (!row) return { error: 'Subagent session not found in cache' };
   const jsonlPath = path.join(PROJECTS_DIR, row.folder, parentSessionId, 'subagents', 'agent-' + agentId + '.jsonl');
   try {
-    const content = fs.readFileSync(jsonlPath, 'utf-8');
-    const entries = [];
-    for (const line of content.split('\n')) {
-      if (!line.trim()) continue;
-      try { entries.push(JSON.parse(line)); } catch {}
-    }
-    return { entries };
+    return parseJsonlCapped(jsonlPath);
   } catch (err) {
     return { error: err.message };
   }
@@ -1437,10 +1519,9 @@ ipcMain.handle('delete-session', (_event, sessionId, folder) => {
 });
 
 // --- IPC: open-terminal ---
-// Extracted from the 'open-terminal' IPC handler so Agent Teams (orch-ipc /
-// orch-spawner) can spawn sessions through the EXACT same path as the renderer.
-// _event was never used in the body, so the extraction is behaviour-preserving;
-// the IPC handler below just delegates.
+// The spawn logic lives in this standalone function (rather than inline in the
+// IPC handler) so it can be called directly as well as over IPC. _event was
+// never used in the body; the IPC handler below just delegates.
 async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
   if (!mainWindow) return { ok: false, error: 'no window' };
 
@@ -1624,10 +1705,10 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
         }
       }
 
-      // Initial user prompt (Agent Teams kickoff, e.g. "/sb-plan <run> <goal>").
-      // Passed as claude's positional [prompt] arg so a FRESH interactive session
-      // starts working on it immediately — no seed+resume needed. Must be LAST
-      // (after --ide) and shell-escaped via quoteArgvForShell.
+      // Optional initial user prompt, passed as claude's positional [prompt] arg
+      // so a FRESH interactive session starts working on it immediately — no
+      // seed+resume needed. Must be LAST (after --ide) and shell-escaped via
+      // quoteArgvForShell.
       if (sessionOptions?.initialPrompt) {
         claudeCmd += ' ' + quoteArgvForShell(shell, [String(sessionOptions.initialPrompt)]);
       }
@@ -1639,36 +1720,6 @@ async function openTerminalImpl(sessionId, projectPath, isNew, sessionOptions) {
       };
       if (mcpServer) {
         ptyEnv.CLAUDE_CODE_SSE_PORT = String(mcpServer.port);
-      }
-
-      // Session profile: merge the profile's env (model/endpoint overrides) into
-      // the pty env. $VAR refs are resolved against the host env; unresolved refs
-      // are dropped (never leaked as literals). Used by Agent Teams to point a
-      // worker session at Claude Haiku or a local model.
-      try {
-        const profile = profilesModule.pickProfileForSession(sessionOptions?.profileId);
-        if (profile) {
-          Object.assign(ptyEnv, profilesModule.resolveEnv(profile.env));
-          sessionProfiles.recordSessionProfile(sessionId, profile.id);
-        } else if (sessionOptions?.profileId === 'none') {
-          sessionProfiles.recordSessionProfile(sessionId, null);
-        }
-      } catch (err) {
-        log.error(`[profiles] Failed to apply profile: ${err.message}`);
-      }
-
-      // Agent Teams: experimental multi-agent coordination. Standard sub-agents
-      // (Task tool) are always enabled — this only gates the experimental teams
-      // feature, and only for sessions explicitly launched with it.
-      if (sessionOptions?.agentTeams) {
-        ptyEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
-        // Marker for a user's PreToolUse guardrail (e.g. check-readonly.sh): claude
-        // owns the CLAUDE_* namespace and may consume/drop the experimental flag
-        // before spawning hook subprocesses, so a hook can't reliably key off it.
-        // This SWITCHBOARD_* var is never touched by claude → it reaches hooks,
-        // which use it to waive the read-only confirmation for the autonomous local
-        // writes orchestrated sessions make (protocol files, worktree edits, commits).
-        ptyEnv.SWITCHBOARD_AGENT_TEAMS = '1';
       }
 
       ptyProcess = pty.spawn(shell, shellArgs(shell, claudeCmd, shellExtraArgs), {
@@ -1986,24 +2037,16 @@ function startProjectsWatcher() {
 // --- IPC: app version ---
 ipcMain.handle('get-app-version', () => app.getVersion());
 
-// --- IPC: auto-updater (INERT in this fork) ---
-// Auto-update is disabled (we build locally from our own repo; the configured
-// feed points at upstream doctly releases). These handlers stay registered so a
-// stray/regressed caller doesn't crash on a missing handler, but they must never
-// touch the updater — invoking one would otherwise check/install the UPSTREAM
-// build and overwrite this fork. Inert + loud.
+// --- IPC: update check (notify-only) ---
+// Manual trigger for the same notifier the scheduler runs. There is no in-app
+// download/install (unsigned build) — the banner opens the release page and the
+// user installs the .dmg manually. download/install stay inert for any stray caller.
 ipcMain.handle('updater-check', () => {
-  log.warn('[updater] check invoked but auto-update is disabled in this fork');
-  return { available: false, disabled: true };
+  checkForUpdateNotification();
+  return { ok: true };
 });
-ipcMain.handle('updater-download', () => {
-  log.warn('[updater] download invoked but auto-update is disabled in this fork');
-  return { disabled: true };
-});
-ipcMain.handle('updater-install', () => {
-  log.warn('[updater] install invoked but auto-update is disabled in this fork');
-  return { disabled: true };
-});
+ipcMain.handle('updater-download', () => ({ disabled: true }));
+ipcMain.handle('updater-install', () => ({ disabled: true }));
 
 // --- IPC: delete-worktree ---
 // Validated path pattern: <project>/.<segment>/[worktrees/]<name>
@@ -2165,37 +2208,6 @@ app.whenReady().then(() => {
   scheduleIpc.init(log, runScheduleCommand);
   startScheduler(log, runScheduleCommand);
 
-  // --- Agent Teams (experimental prototype) ---
-  // Profiles (with the data-egress guard) + session-profile persistence + the
-  // orchestration IPC. Sessions spawned by the orchestrator go through
-  // openTerminalImpl, so they behave exactly like user-opened terminals
-  // (profiles, buffering, busy detection). Gated per-session by the agentTeams
-  // flag; the egress guard reads agentTeamsAllowExternalModels (default false).
-  try {
-    profilesModule.init(log, () => !!(getSetting('global') || {}).agentTeamsAllowExternalModels);
-    sessionProfiles.init(log);
-    try { require('./orch-bootstrap').ensureClaudeAssets({ log }); }
-    catch (err) { log.error(`[orch] bootstrap failed: ${err.message}`); }
-    orchModule = require('./orch-ipc').init(log, {
-      openTerminal: openTerminalImpl,
-      sendInput: (sessionId, text) => {
-        const session = activeSessions.get(sessionId);
-        if (!session || session.exited) return false;
-        try { session.pty.write(text); return true; } catch { return false; }
-      },
-      isSessionActive: (sessionId) => {
-        const session = activeSessions.get(sessionId);
-        return !!session && !session.exited;
-      },
-      isSessionBusy: (sessionId) => !!activeSessions.get(sessionId)?._cliBusy,
-      getMainWindow: () => mainWindow,
-      // runValidation (phase-gate runner) intentionally omitted in this proto:
-      // orch-spawner skips gates when deps.runValidation is absent. To add later.
-    });
-  } catch (err) {
-    log.error(`[orch] Agent Teams init failed: ${err.message}`);
-  }
-
   // Full cache rebuild on every startup — prunes stale rows for deleted
   // transcripts (sub-agent/workflow runs cleaned up between sessions leave
   // ghost rows in session_cache that show in the sidebar but are inaccessible
@@ -2208,12 +2220,14 @@ app.whenReady().then(() => {
   // (populatePromise !== null) means this is a no-op on the same tick.
   if (searchFtsRecreated) populateCacheViaWorker();
 
-  // Auto-update is intentionally disabled in this fork. We are built locally from
-  // our own repo (no published releases), and the configured feed still points at
-  // the upstream doctly releases — an automatic check would surface upstream builds
-  // as "updates" and a click could overwrite this fork. So we do NOT schedule any
-  // checkForUpdates here. The manual "Check for Updates" UI is also removed; the
-  // updater module stays loaded but dormant.
+  // Update notifier (unsigned build → notify only, never auto-install). Check the
+  // fork's GitHub releases shortly after launch and once a day; the renderer shows
+  // a dismissable "Download" banner if a newer version exists. Packaged only, so a
+  // dev build doesn't nag. See checkForUpdateNotification.
+  if (app.isPackaged) {
+    setTimeout(checkForUpdateNotification, 10000);
+    setInterval(checkForUpdateNotification, 24 * 60 * 60 * 1000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

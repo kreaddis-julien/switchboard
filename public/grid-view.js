@@ -63,6 +63,10 @@ function wrapInGridCard(sessionId) {
   card.appendChild(header);
   entry.element.classList.add('visible', 'grid-mode');
   card.appendChild(entry.element);
+  // Drain any data that accumulated while this session was non-visible — after
+  // classList.add (isSessionVisible true) and appendChild (element in DOM so the
+  // xterm write callback's scrollToBottom targets the attached element).
+  drainReplayBuffer(sessionId);
   card.appendChild(footer);
 
   // Insert card into the correct project group in the grid
@@ -122,12 +126,17 @@ function wrapInGridCard(sessionId) {
     focusGridCard(sessionId);
   });
 
-  // Clicking/focusing the terminal area also selects the card
-  entry.element.addEventListener('focusin', () => {
-    if (gridViewActive && gridFocusedSessionId !== sessionId) {
-      focusGridCard(sessionId);
-    }
-  });
+  // Clicking/focusing the terminal area also selects the card. entry.element is
+  // the persistent terminal-container reused across grid enter/exit cycles, so
+  // bind the listener once — re-adding it on every wrap leaked a handler per cycle.
+  if (!entry.element._gridFocusinBound) {
+    entry.element._gridFocusinBound = true;
+    entry.element.addEventListener('focusin', () => {
+      if (gridViewActive && gridFocusedSessionId !== entry.session.sessionId) {
+        focusGridCard(entry.session.sessionId);
+      }
+    });
+  }
 
   gridCards.set(sessionId, card);
   if (gridCardObserver) gridCardObserver.observe(card);
@@ -299,10 +308,19 @@ function initGridObservers() {
       for (const e of entries) {
         const sid = e.target.dataset.sessionId;
         if (!sid) continue;
+        const en = openSessions.get(sid);
         if (e.isIntersecting) {
           restoreTerminalWebgl(sid);
+          // Back on-screen: clear the background-write flag and flush whatever
+          // accumulated while it was scrolled out (Stage A skipped its writes).
+          if (en) en.element.classList.remove('offscreen');
+          drainReplayBuffer(sid);
         } else {
           suspendTerminalWebgl(sid);
+          // Off-screen grid card: mark it so isSessionVisible() treats it as
+          // background and the flush path skips VT parse (Stage A) — otherwise
+          // the background-write optimisation is lost for the whole grid.
+          if (en) en.element.classList.add('offscreen');
         }
       }
     }, { threshold: 0 });

@@ -7,6 +7,55 @@ const crypto = require('crypto');
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
 
+// Persist the last-fired time per task so a slot missed while the machine was
+// asleep or the app was quit can be caught up on the next tick after wake/relaunch.
+// (The tick is a plain per-minute poll: while the process runs its main-thread
+// setInterval is precise — measured, not throttled by Chromium/App Nap — so the
+// only real gaps are OS sleep and a full quit.) Mirrors db.js's data dir so a
+// dev/test run with SWITCHBOARD_DATA_DIR stays isolated.
+const DATA_DIR = process.env.SWITCHBOARD_DATA_DIR
+  ? path.resolve(process.env.SWITCHBOARD_DATA_DIR.replace(/^~(?=$|\/)/, os.homedir()))
+  : path.join(os.homedir(), '.switchboard');
+const SCHEDULE_STATE_PATH = path.join(DATA_DIR, 'schedule-state.json');
+
+// Bounded catch-up: only recover a slot missed within this window, so reopening
+// after a long absence never resurrects an ancient (or a flood of) slots.
+const CATCHUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function loadScheduleState() {
+  try {
+    const data = JSON.parse(fs.readFileSync(SCHEDULE_STATE_PATH, 'utf8'));
+    const map = new Map();
+    if (data && typeof data.lastFired === 'object' && data.lastFired) {
+      for (const [k, v] of Object.entries(data.lastFired)) {
+        if (typeof v === 'number' && Number.isFinite(v)) map.set(k, v);
+      }
+    }
+    return map;
+  } catch { return new Map(); }
+}
+
+function saveScheduleState(map) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const obj = { lastFired: Object.fromEntries(map) };
+    const tmp = SCHEDULE_STATE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(obj));
+    fs.renameSync(tmp, SCHEDULE_STATE_PATH); // atomic
+  } catch { /* best-effort; a lost write just re-baselines next launch */ }
+}
+
+// Newest cron-matching minute in (max(sinceMs, now-window), now], or null.
+// Returns at most one slot so a run is caught up ONCE, never once-per-missed-minute.
+function newestDueSlot(cronExpr, nowMs, sinceMs) {
+  const windowStart = Math.max(sinceMs, nowMs - CATCHUP_WINDOW_MS);
+  const nowMinute = nowMs - (nowMs % 60000);
+  for (let m = nowMinute; m > windowStart; m -= 60000) {
+    if (cronMatches(cronExpr, new Date(m))) return m;
+  }
+  return null;
+}
+
 /** Parse YAML-like frontmatter from a markdown file (simple key: value parser). */
 function parseFrontmatter(content) {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -252,21 +301,38 @@ function buildScheduleCommand(sessionId, schedule) {
 function startScheduler(log, runCommand) {
   let running = true;
   const runningTasks = new Set();
+  const lastFired = loadScheduleState(); // taskKey -> epoch ms of last fire
 
   function tick() {
     if (!running) return;
     const now = new Date();
+    const nowMs = now.getTime();
     const schedules = scanSchedules(log);
+    let dirty = false;
 
     for (const schedule of schedules) {
-      if (!cronMatches(schedule.cron, now)) continue;
       const taskKey = `${schedule.folder}:${schedule.slug}`;
+      const lf = lastFired.get(taskKey);
+      // Known task: recover any slot after its last fire (bounded). First sight:
+      // only the current minute — never reach back before we started tracking it,
+      // so enabling catch-up (or adding a task) can't retro-fire old slots.
+      const since = (lf === undefined) ? (nowMs - 60000) : lf;
+      const slot = newestDueSlot(schedule.cron, nowMs, since);
+      if (lf === undefined) { lastFired.set(taskKey, nowMs); dirty = true; } // baseline
+
+      if (slot === null) continue; // nothing due (on-time or missed)
+
       if (runningTasks.has(taskKey)) {
+        // Leave lastFired unadvanced (known task) so it retries once the previous
+        // run finishes and the slot is still within the window.
         log.info(`[schedule] Skipping ${schedule.name} — still running from previous trigger`);
         continue;
       }
 
-      log.info(`[schedule] Triggering: ${schedule.name} (${schedule.cron})`);
+      lastFired.set(taskKey, nowMs); // mark fired -> next ticks won't re-fire this slot
+      dirty = true;
+      const caughtUp = slot < nowMs - 60000;
+      log.info(`[schedule] Triggering: ${schedule.name} (${schedule.cron})${caughtUp ? ' [catch-up]' : ''}`);
       try {
         const { sessionId } = createScheduleSession(schedule);
         const { claudeArgs } = buildScheduleCommand(sessionId, schedule);
@@ -279,6 +345,8 @@ function startScheduler(log, runCommand) {
         log.error(`[schedule] Failed to run ${schedule.name}:`, err);
       }
     }
+
+    if (dirty) saveScheduleState(lastFired);
   }
 
   const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000;
@@ -295,4 +363,4 @@ function startScheduler(log, runCommand) {
   };
 }
 
-module.exports = { parseFrontmatter, cronMatches, scanSchedules, startScheduler, createScheduleSession, buildScheduleCommand };
+module.exports = { parseFrontmatter, cronMatches, newestDueSlot, scanSchedules, startScheduler, createScheduleSession, buildScheduleCommand };

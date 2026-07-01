@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('api', {
   setProjectGroup: (projectPath, group) => ipcRenderer.invoke('set-project-group', projectPath, group),
   deleteWorktree: (worktreePath) => ipcRenderer.invoke('delete-worktree', worktreePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  writeClipboard: (text) => ipcRenderer.invoke('clipboard-write-text', text),
 
   // Send (fire-and-forget)
   sendInput: (id, data) => ipcRenderer.send('terminal-input', id, data),
@@ -132,34 +133,5 @@ contextBridge.exposeInMainWorld('api', {
   unwatchFile: (filePath) => ipcRenderer.invoke('unwatch-file', filePath),
   onFileChanged: (callback) => {
     ipcRenderer.on('file-changed', (_event, filePath) => callback(filePath));
-  },
-
-  // --- Agent Teams (experimental prototype) ---
-  // Session profiles (env-var bundles applied at spawn; data-egress guarded).
-  profiles: {
-    list: () => ipcRenderer.invoke('profiles:list'),
-    save: (profile) => ipcRenderer.invoke('profiles:save', profile),
-    delete: (id) => ipcRenderer.invoke('profiles:delete', id),
-    setDefault: (id) => ipcRenderer.invoke('profiles:set-default', id),
-  },
-  sessionProfiles: {
-    getAll: () => ipcRenderer.invoke('session-profiles:get-all'),
-  },
-  // Orchestration — run/task state is file-based per project; the renderer
-  // watches projects and receives 'orchestration-updated' snapshots.
-  orchestration: {
-    watchProjects: (projectPaths) => ipcRenderer.invoke('orch:watch-projects', projectPaths),
-    getState: () => ipcRenderer.invoke('orch:get-state'),
-    getRun: (projectPath, runId) => ipcRenderer.invoke('orch:get-run', projectPath, runId),
-    readTaskFile: (projectPath, runId, taskId, which) => ipcRenderer.invoke('orch:read-task-file', projectPath, runId, taskId, which),
-    createRun: (projectPath, opts) => ipcRenderer.invoke('orch:create-run', projectPath, opts),
-    runAction: (projectPath, runId, action) => ipcRenderer.invoke('orch:run-action', projectPath, runId, action),
-    taskAction: (projectPath, runId, taskId, action) => ipcRenderer.invoke('orch:task-action', projectPath, runId, taskId, action),
-    deleteRun: (projectPath, runId) => ipcRenderer.invoke('orch:delete-run', projectPath, runId),
-    onUpdated: (cb) => {
-      const handler = (_e, state) => cb(state);
-      ipcRenderer.on('orchestration-updated', handler);
-      return () => ipcRenderer.removeListener('orchestration-updated', handler);
-    },
   },
 });

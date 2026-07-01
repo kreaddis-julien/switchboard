@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const os = require('os');
+const { runWithBusyRetry } = require('./sqlite-busy-retry');
 
 // SWITCHBOARD_DATA_DIR lets dev/agent/test runs point at a separate DB instead
 // of the real ~/.switchboard one (e.g. to exercise the FTS migration on a copy
@@ -175,8 +176,8 @@ const migrations = [
     try { db.exec('VACUUM'); } catch {}
     searchFtsRecreated = true;
   },
-  // v8: Session-shape metrics for the health/handoff insight (session-health.js):
-  // user-turn count, largest single user prompt (words), active span (minutes),
+  // v8: Session-shape metrics: user-turn count, largest single user prompt
+  // (words), active span (minutes),
   // and first/last entry timestamps. Add only MISSING columns (PRAGMA-checked, as
   // in v5) so a real ALTER failure aborts before db_version bumps. The cache is
   // re-indexed on this boot anyway (v7 set searchFtsRecreated -> full repopulate),
@@ -212,6 +213,15 @@ if (migrations.length > currentDbVersion) {
 // content table size independently of raw transcript length, while keeping
 // enough text for useful snippet() previews.
 const FTS_BODY_MAX_CHARS = 32768; // 32768 UTF-16 code units; surrogate split at the boundary is negligible for ASCII transcripts
+
+// FTS_QUERY_MAX_CHARS caps the query string passed to FTS5. With tokenize='trigram',
+// a double-quoted (phrase) query intersects one trigram doclist per 3-char window in
+// order — a 60-char URL yields ~58 overlapping trigrams. Common trigrams ("://",
+// "git", "/-/") have enormous doclists on a 4000+ session index, and the contiguous
+// phrase-intersect blocks the synchronous main thread for up to ~60 s. Capping at 48
+// chars limits the phrase to <=46 trigrams (safe for a main-thread query) while
+// preserving any plausible hand-typed search; longer pastes are silently truncated.
+const FTS_QUERY_MAX_CHARS = 48;
 
 // search_content holds the plaintext the fts5 index reads columns from. It is
 // the single authoritative copy: title is full-length; body is truncated to
@@ -362,17 +372,17 @@ function getAllMeta() {
 // source: 'user' (UI rename) | 'jsonl' (Claude /rename custom-title) | null.
 // A null/empty name clears the source too (no preference to protect).
 function setName(sessionId, name, source = null) {
-  stmts.upsertName.run(sessionId, name, name ? source : null);
+  runWithBusyRetry(() => stmts.upsertName.run(sessionId, name, name ? source : null));
 }
 
 function toggleStar(sessionId) {
-  stmts.upsertStar.run(sessionId);
+  runWithBusyRetry(() => stmts.upsertStar.run(sessionId));
   const row = stmts.get.get(sessionId);
   return row.starred;
 }
 
 function setArchived(sessionId, archived) {
-  stmts.upsertArchived.run(sessionId, archived ? 1 : 0);
+  runWithBusyRetry(() => stmts.upsertArchived.run(sessionId, archived ? 1 : 0));
 }
 
 // --- Session cache functions ---
@@ -407,7 +417,7 @@ function getCachedByParent(parentSessionId) {
 }
 
 function upsertCachedSessions(sessions) {
-  upsertCachedSessionsBatch(sessions);
+  runWithBusyRetry(() => upsertCachedSessionsBatch(sessions));
 }
 
 function getCachedByFolder(folder) {
@@ -415,7 +425,7 @@ function getCachedByFolder(folder) {
 }
 
 function touchCachedModified(sessionId, modified) {
-  stmts.cacheTouchModified.run(modified, sessionId);
+  runWithBusyRetry(() => stmts.cacheTouchModified.run(modified, sessionId));
 }
 
 function getCachedFolder(sessionId) {
@@ -428,12 +438,14 @@ function getCachedSession(sessionId) {
 }
 
 function deleteCachedSession(sessionId) {
-  stmts.cacheDeleteSession.run(sessionId);
+  runWithBusyRetry(() => stmts.cacheDeleteSession.run(sessionId));
 }
 
 function deleteCachedFolder(folder) {
-  stmts.cacheDeleteFolder.run(folder);
-  stmts.metaDelete.run(folder);
+  runWithBusyRetry(() => {
+    stmts.cacheDeleteFolder.run(folder);
+    stmts.metaDelete.run(folder);
+  });
 }
 
 function getFolderMeta(folder) {
@@ -448,7 +460,7 @@ function getAllFolderMeta() {
 }
 
 function setFolderMeta(folder, projectPath, indexMtimeMs) {
-  stmts.metaUpsert.run(folder, projectPath, indexMtimeMs);
+  runWithBusyRetry(() => stmts.metaUpsert.run(folder, projectPath, indexMtimeMs));
 }
 
 // --- FTS search functions ---
@@ -484,27 +496,33 @@ function deleteSearchSession(sessionId) {
   // search_content rows still exist (SQLite reads search_content to locate the
   // trigram entries to remove). search_map is deleted last because the rowid
   // sub-select in the two DELETEs above still needs to resolve.
-  stmts.searchDeleteBySession.run(sessionId);
-  stmts.searchDeleteContentBySession.run(sessionId);
-  stmts.searchMapDeleteBySession.run(sessionId);
+  runWithBusyRetry(() => {
+    stmts.searchDeleteBySession.run(sessionId);
+    stmts.searchDeleteContentBySession.run(sessionId);
+    stmts.searchMapDeleteBySession.run(sessionId);
+  });
 }
 
 function deleteSearchFolder(folder) {
   // Same external-content ordering: FTS delete before content delete.
-  stmts.searchDeleteByFolder.run(folder);
-  stmts.searchDeleteContentByFolder.run(folder);
-  stmts.searchMapDeleteByFolder.run(folder);
+  runWithBusyRetry(() => {
+    stmts.searchDeleteByFolder.run(folder);
+    stmts.searchDeleteContentByFolder.run(folder);
+    stmts.searchMapDeleteByFolder.run(folder);
+  });
 }
 
 function deleteSearchType(type) {
   // Same external-content ordering: FTS delete before content delete.
-  stmts.searchDeleteByType.run(type);
-  stmts.searchDeleteContentByType.run(type);
-  stmts.searchMapDeleteByType.run(type);
+  runWithBusyRetry(() => {
+    stmts.searchDeleteByType.run(type);
+    stmts.searchDeleteContentByType.run(type);
+    stmts.searchMapDeleteByType.run(type);
+  });
 }
 
 function upsertSearchEntries(entries) {
-  upsertSearchEntriesBatch(entries);
+  runWithBusyRetry(() => upsertSearchEntriesBatch(entries));
 }
 
 function updateSearchTitle(id, type, title) {
@@ -518,19 +536,25 @@ function updateSearchTitle(id, type, title) {
     const rid = mapRow.rowid;
     const contentRow = stmts.searchContentGet.get(rid);
     if (!contentRow) return;
-    // Update the content table first.
-    stmts.searchUpdateTitle.run(title, id, type);
-    // Patch the fts5 index: external-content delete (old values) + reinsert.
-    stmts.searchFtsDeleteRow.run(rid, contentRow.title, contentRow.body);
-    stmts.searchFtsInsertRow.run(rid, title, contentRow.body);
+    runWithBusyRetry(() => {
+      // Update the content table first.
+      stmts.searchUpdateTitle.run(title, id, type);
+      // Patch the fts5 index: external-content delete (old values) + reinsert.
+      stmts.searchFtsDeleteRow.run(rid, contentRow.title, contentRow.body);
+      stmts.searchFtsInsertRow.run(rid, title, contentRow.body);
+    });
   } catch {}
 }
 
 function searchByType(type, query, limit = 50, titleOnly = false) {
   try {
+    // Cap query length before building the MATCH expression — a long trigram phrase
+    // query (e.g. a pasted 60-char URL) can block the SQLite main thread for ~60 s.
+    // See FTS_QUERY_MAX_CHARS. Truncate before escaping so the cap counts source chars.
+    const bounded = query.slice(0, FTS_QUERY_MAX_CHARS);
     // Wrap in double quotes for exact substring matching with trigram tokenizer.
     // This prevents FTS5 from splitting on punctuation (e.g. "spec.md" → "spec" + "md")
-    const escaped = '"' + query.replace(/"/g, '""') + '"';
+    const escaped = '"' + bounded.replace(/"/g, '""') + '"';
     // FTS5 column filter: prefix with "title:" to restrict match to title column
     const match = titleOnly ? 'title:' + escaped : escaped;
     return stmts.searchQuery.all(type, match, limit);
@@ -553,11 +577,11 @@ function getSetting(key) {
 }
 
 function setSetting(key, value) {
-  stmts.settingsUpsert.run(key, JSON.stringify(value));
+  runWithBusyRetry(() => stmts.settingsUpsert.run(key, JSON.stringify(value)));
 }
 
 function deleteSetting(key) {
-  stmts.settingsDelete.run(key);
+  runWithBusyRetry(() => stmts.settingsDelete.run(key));
 }
 
 function closeDb() {

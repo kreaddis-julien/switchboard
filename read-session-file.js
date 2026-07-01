@@ -72,9 +72,8 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
     // message.usage; tool calls / subagent (Task) invocations from tool_use blocks.
     let inputTokens = 0, outputTokens = 0, cacheReadTokens = 0, cacheCreationTokens = 0;
     let toolCalls = 0, subagentInvocations = 0, model = null;
-    // Session-shape metrics for the health/handoff insight (session-health.js):
-    // count of user turns, the largest single user prompt (word count), and the
-    // first/last entry timestamps to derive the active span.
+    // Session-shape metrics: count of user turns, the largest single user prompt
+    // (word count), and the first/last entry timestamps to derive the active span.
     let userMessageCount = 0, largestUserPromptWords = 0;
     let startedAt = null, lastEntryAt = null;
     for (const line of lines) {
@@ -106,9 +105,13 @@ function readSessionFile(filePath, folder, projectPath, opts = {}) {
         messageCount++;
       }
       const msg = entry.message;
+      // Join ALL text blocks, not just content[0]: a message can be
+      // [{tool_result|image}, {text}], where the real prompt isn't first.
       const text = typeof msg === 'string' ? msg :
         (typeof msg?.content === 'string' ? msg.content :
-        (msg?.content?.[0]?.text || ''));
+        (Array.isArray(msg?.content)
+          ? msg.content.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n')
+          : ''));
       // Analytics: accumulate usage/model/tool metrics from assistant turns.
       if (entry.type === 'assistant' || (entry.type === 'message' && entry.role === 'assistant')) {
         const u = msg && msg.usage;
@@ -324,7 +327,9 @@ function readSessionDisplayHeader(filePath, opts = {}) {
       const msg = entry.message;
       const txt = typeof msg === 'string' ? msg :
         (typeof msg?.content === 'string' ? msg.content :
-        (msg?.content?.[0]?.text || ''));
+        (Array.isArray(msg?.content)
+          ? msg.content.filter(b => b && b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n')
+          : ''));
       if (!summary && (entry.type === 'user' || (entry.type === 'message' && entry.role === 'user'))) {
         if (txt && !/<bash-input>|<bash-stdout>|<local-command-caveat>/.test(txt)) {
           const taskMatch = txt.match(/<scheduled-task\s+name="([^"]+)"/);

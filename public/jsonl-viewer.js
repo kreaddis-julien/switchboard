@@ -32,7 +32,9 @@ function renderJsonlText(text) {
     // Sanitize like the sibling viewers (viewer-panel.js / viewer-toolbar.js): the
     // escape above only catches <tag>-shaped text, not marked-generated hrefs such
     // as [x](javascript:...). DOMPurify strips javascript:/vbscript: and on* attrs.
-    return window.DOMPurify ? window.DOMPurify.sanitize(html) : html;
+    // If DOMPurify somehow isn't loaded, fall back to escaped plain text rather
+    // than returning raw marked HTML — never depend on load order for XSS safety.
+    return window.DOMPurify ? window.DOMPurify.sanitize(html) : escapeHtml(text);
   }
   // Fallback if marked isn't loaded
   let html = escapeHtml(text);

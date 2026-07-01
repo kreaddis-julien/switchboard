@@ -85,6 +85,7 @@
     const systemNotificationsValue = fieldValue('systemNotifications', true);
     const mcpEmulationValue = fieldValue('mcpEmulation', true);
     const shellProfileValue = fieldValue('shellProfile', 'auto');
+    const restoreStartupValue = fieldValue('restoreOnStartup', 'off');
     const languageValue = fieldValue('language', 'en');
 
     // Working copy of the (global-only) re-bindable keyboard shortcuts.
@@ -180,6 +181,12 @@
             `<select class="settings-select" id="sv-shell-profile">
               <option value="auto" ${shellProfileValue === 'auto' ? 'selected' : ''}>${escapeHtml(t('set.opt.auto_detect'))}</option>
               ${shellProfiles.map((p) => `<option value="${escapeHtml(p.id)}" ${shellProfileValue === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+            </select>`)}
+          ${row(t('set.restore_startup'), t('set.restore_startup_d'),
+            `<select class="settings-select" id="sv-restore-startup">
+              <option value="off" ${restoreStartupValue === 'off' ? 'selected' : ''}>${escapeHtml(t('set.opt.restore_off'))}</option>
+              <option value="ask" ${restoreStartupValue === 'ask' ? 'selected' : ''}>${escapeHtml(t('set.opt.restore_ask'))}</option>
+              <option value="auto" ${restoreStartupValue === 'auto' ? 'selected' : ''}>${escapeHtml(t('set.opt.restore_auto'))}</option>
             </select>`)}
           ${SHORTCUT_DEFS.map((def) => row(def.label, def.description,
             `<button class="settings-shortcut-btn" id="sv-sc-${def.id}" data-sc-id="${def.id}">${escapeHtml(formatBinding(def.id, scIsMac, scShortcuts))}</button>`)).join('')}
@@ -337,6 +344,7 @@
         if (q('sv-appearance')) settings.appearance = q('sv-appearance').value || 'auto';
         if (q('sv-terminal-theme')) settings.terminalTheme = q('sv-terminal-theme').value || 'auto';
         if (q('sv-shell-profile')) settings.shellProfile = q('sv-shell-profile').value || 'auto';
+        if (q('sv-restore-startup')) settings.restoreOnStartup = q('sv-restore-startup').value || 'off';
         if (q('sv-sound-notif')) settings.soundNotifications = q('sv-sound-notif').checked;
         if (q('sv-system-notif')) settings.systemNotifications = q('sv-system-notif').checked;
         if (q('sv-visible-count')) settings.visibleSessionCount = Math.min(100, Math.max(1, parseInt(q('sv-visible-count').value) || 10));

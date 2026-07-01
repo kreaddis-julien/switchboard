@@ -2,7 +2,7 @@
 
 **Your command center for Claude Code sessions** — a unified view of every Claude Code session across all your projects. Launch, resume, fork, and monitor sessions from a single window, no more juggling terminal tabs or digging through `~/.claude/projects`.
 
-> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts** + **session-health** insights, a **bilingual EN/FR interface**, an experimental **Agent Teams** orchestrator, and a curated set of upstream PRs merged in. There are **no prebuilt releases** for this fork — you [build it from source](#install-build-from-source) (it takes a couple of minutes). Auto-update is intentionally disabled so a local build is never overwritten by an upstream release.
+> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts**, a **bilingual EN/FR interface**, and a curated set of upstream PRs merged in. Tagged releases publish a **prebuilt macOS `.dmg`**, and the app **checks this fork's releases and notifies you** when a newer version is out (notify-only — the build is unsigned, so you download and install manually). You can also [build from source](#install-build-from-source) (a couple of minutes).
 
 ## Contents
 
@@ -47,15 +47,8 @@ For Windows/Linux, see [Building](#building).
 - **Subtly recessed sidebar** — the sidebar panel sits a hair off the main content (a touch greyer in light, slightly darker in dark) for a calm content/navigation separation.
 
 **Interface language (i18n)**
-- **Full English / French interface** — every view is localized (sidebar, Agent Teams, settings, dialogs, status bar, relative timestamps, and the **native macOS menu**). Switch in **Settings → General → Language**; the default is English. Changing it reloads the window so everything re-renders translated.
+- **Full English / French interface** — every view is localized (sidebar, settings, dialogs, status bar, relative timestamps, and the **native macOS menu**). Switch in **Settings → General → Language**; the default is English. Changing it reloads the window so everything re-renders translated.
 - Built on a tiny in-house layer (`public/i18n.js`, `t('key')` + `en`/`fr` dictionaries, no dependency); strings are keyed and English is the source of truth, so a missing translation falls back to English rather than going blank.
-
-**Agent Teams (experimental orchestrator)**
-- A **Teams** tab spins up a coordinated team of Claude Code sessions from a single goal: a **master** plans + decomposes, **workers** implement each task in its own **git worktree** (isolated from your checkout), **reviewers** validate each task through multiple lenses, then the master **merges** into an integration branch. State is **file-based** (`<project>/.switchboard/runs/`), so a run survives a crash/restart.
-- **Run dashboard** — a per-run detail with a progress bar, spend/budget and role/tier roster, an **Overview** tab grouping tasks by status (plus the full **Kanban board**, **Plan** and **Timeline** tabs), live updates, per-tier model routing, and a **token budget stop-loss** that auto-pauses a run.
-- **Manage runs from the board** — pause/resume, open the master session, and **delete a run** (× on the sidebar row or the header button) which removes its worktrees, session transcripts and run files, refusing while any of its sessions is live.
-- **Data-egress guard**: worker model profiles may only point at Anthropic or a loopback address (a local Ollama/LM Studio shim) — third-party endpoints are refused unless `agentTeamsAllowExternalModels` is enabled. Gated behind a per-session flag; OFF by default.
-- Requires write-capable Claude Code sessions: if your `~/.claude` is hardened read-only (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, a write-blocking `PreToolUse:Bash` hook), Agent Teams sessions need an escape hatch. Status & follow-ups in `docs/agent-teams-spec.md`.
 
 **Performance** *(ported from [JeanBaptisteRenard](https://github.com/JeanBaptisteRenard/switchboard))*
 - **DB ~5× smaller** — contentless FTS5 index + 32 KB body truncation (+ a one-time `VACUUM` migration), plus `synchronous=NORMAL` and a WAL checkpoint on close.
@@ -66,7 +59,7 @@ For Windows/Linux, see [Building](#building).
 **Settings**
 - **Redesigned panel** with a left **category nav** (General / Notifications / Sessions / Sidebar / Toolbar / Claude CLI / About) and **auto-save** — changes apply and persist on the fly, no Save button.
 - **Configurable toolbar** — choose, per action (pin, running, overview, collapse-all, bookmarks, today, archive, re-sort, add-project), whether it sits in the sidebar toolbar or behind the **"more" (⋯)** popover, and **drag to reorder** them (Settings → Toolbar).
-- **Auto-update disabled** — this fork builds locally from its own repo (no releases), and the upstream feed would otherwise surface upstream builds as "updates" and overwrite the fork, so the update check is removed.
+- **Update notifications (notify-only)** — on launch and once a day the app checks this fork's GitHub releases and shows a dismissable banner when a newer version is available; **Download** opens the release page. There is no in-app auto-install: the macOS build is **unsigned** (no Apple Developer ID), which rules out signed/notarized auto-update. Install the `.dmg` manually — on first launch **right-click → Open** once to clear Gatekeeper.
 
 **Notifications & performance**
 - **Sound notifications** (on by default) — a chime when a non-focused session finishes a run, a more insistent two-tone when one needs attention/permission (synthesized via Web Audio, no assets). Addresses upstream [#66](https://github.com/doctly/switchboard/issues/66).
@@ -86,8 +79,7 @@ For Windows/Linux, see [Building](#building).
 - Session actions live behind a **"⋯" menu** (floating dropdown) instead of a hover overlay — no accidental stop/fork on a mis-hover.
 - **Project actions** likewise live behind a per-project **"⋯" menu** (New session / Scheduled task / Project settings / Archive sessions) instead of a row of inline icons.
 - **Settings** opens from the **native macOS menu** (`⌘,`); the in-UI gear is removed.
-- **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path). **Agent Teams** worker/reviewer sessions nest the same way under their run's master row (and worktree sessions are re-attributed to the parent project instead of a phantom one).
-- **Session-health badge** *(ported from [HaydnG](https://github.com/HaydnG/switchboard))* — long-running sessions get a **"Marathon Risk"** / **"Handoff Recommended"** chip (from user-turn count, active time, cache-read tokens and largest prompt), so you can hand off before a session degrades. Only flagged sessions show a badge.
+- **Subagent transcripts** are nested under their parent via an **"N subsessions"** toggle instead of cluttering the list as peers — and can be **hidden entirely** (Settings → Sidebar → Show Subagent Sessions). Clicking one opens its transcript read-only (read via the correct `subagents/agent-*.jsonl` path). Worktree sessions are re-attributed to the parent project instead of a phantom one.
 - **Read a transcript without attaching** — clicking a session opens it normally (attaches/focuses its terminal); to inspect a dormant session's transcript read-only, use **"View messages"** in the **"⋯" menu**. Subagent sessions, which aren't resumable, always open read-only. Relates to upstream [#25](https://github.com/doctly/switchboard/issues/25).
 - **Collapse / expand all projects** button; per-tab visibility (Plans / Agent Files / Stats).
 - **Manual refresh** — a rescan button in the sidebar toolbar (inside the "⋯ more" menu by default; pin it to the visible row via Settings) forces a full re-index and **prunes ghost rows** for sessions or whole project folders deleted on disk, then refreshes the search index.
@@ -197,9 +189,6 @@ main.js            Electron main process (IPC, windows, sessions, native menu)
 preload.js         Context bridge (IPC bindings)
 db.js              SQLite session cache & metadata (contentless FTS5)
 read-session-file.js   .jsonl session parsing (scan)
-orch-*.js          Agent Teams orchestration (protocol, spawner, watcher, cost, templates, ipc, bootstrap)
-profiles.js / worktree-manager.js   Agent Teams: model profiles (egress-guarded) + git worktree isolation
-docs/agent-teams-spec.md   Agent Teams design, status & follow-ups
 public/            Renderer (HTML/CSS/JS) — sidebar, terminals, settings, viewers
   i18n.js              EN/FR localization layer (t() + dictionaries, loaded first)
   app.js               app wiring, toolbar layout, notifications

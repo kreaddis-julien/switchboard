@@ -63,7 +63,7 @@ function setupTerminalKeyBindings(terminal, container, getSessionId, { onFind } 
     if (!isMac && e.key === 'c' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
       if (terminal.hasSelection()) {
         if (e.type === 'keydown') {
-          navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+          window.api.writeClipboard(terminal.getSelection());
         }
         return false;
       }
@@ -175,7 +175,87 @@ const terminalWriteBuffers = new Map(); // sessionId → { chunks, syncDepth, ra
 // Measured: compositor burns 40-60% of a core at 60 fps; 33 ms doubles parse-batch
 // size and is imperceptible for streaming text (worst-case added latency: 33 ms).
 const MIN_FLUSH_INTERVAL_MS = 33; // ~30 fps
+
+// Background sessions (non-visible) flush much less often. Stage A already eliminates
+// VT parse cost (write() is skipped), so the benefit of Stage B is reducing background
+// coalescing/buffer-append overhead (fewer rawReplayBuffers.push + enforceReplayBufferCap
+// calls). The wider coalescing window also extends the period where a quick re-visibility
+// avoids the raw-buffer path entirely — data that arrives during the 2s gap goes straight
+// to terminal.write() on the next frame if the session becomes visible before the timer fires.
+const BACKGROUND_FLUSH_INTERVAL_MS = 2000;
+
 const lastFlushAt = new Map(); // sessionId → performance.now() of last flush
+
+// --- Background write optimisation ---
+// Stage A: non-visible sessions skip terminal.write() entirely. Raw PTY data is
+// accumulated in rawReplayBuffers and drained in one batch on (re)visibility.
+// This eliminates xterm's VT parse cost for hidden terminals — the dominant
+// renderer CPU when many Claude sessions stream simultaneously.
+//
+// Safety notes:
+// - OSC 0/9 (busy/attention badges) are parsed in main.js on raw PTY data before
+//   the renderer, so skipping renderer writes does NOT break any badge or notification.
+// - The sync-block guard (ESC[?2026h/l) runs in handleTerminalData (before
+//   flushTerminalBuffer), so syncDepth stays correct even when writes are deferred.
+// - OSC 52 (clipboard) sequences in skipped background data won't dispatch —
+//   acceptable because clipboard writes only matter when the user is viewing a session.
+
+// Per-session raw data accumulated while the terminal is not visible.
+// Map<sessionId, string[]> — one entry per chunk coalesced from flushTerminalBuffer.
+const rawReplayBuffers = new Map();
+
+// Hard cap to avoid unbounded memory for long-background high-throughput sessions.
+// Oldest chunks are dropped when total exceeds the cap (lossy, matching the
+// existing scrollback LRU trade-off: the user accepted data loss on background eviction).
+// Budget is in UTF-16 code units (String.prototype.length), not bytes. Terminal output
+// is overwhelmingly ASCII, so chars≈bytes in practice — the cheap .length measure avoids
+// TextEncoder allocation on every flush.
+const RAW_REPLAY_BUFFER_CAP_CHARS = 2 * 1024 * 1024; // ~2 MB for ASCII-dominant output
+
+// Enforce the per-session cap: drop oldest chunks from the front until total ≤ cap.
+function enforceReplayBufferCap(sessionId) {
+  const arr = rawReplayBuffers.get(sessionId);
+  if (!arr) return;
+  let total = arr.reduce((s, c) => s + c.length, 0);
+  while (total > RAW_REPLAY_BUFFER_CAP_CHARS && arr.length > 0) {
+    const dropped = arr.shift();
+    total -= dropped.length;
+  }
+}
+
+// True when the session's terminal container is visible to the user (single view:
+// '.visible'; grid view: '.visible.grid-mode'). Using the .visible class as the
+// canonical signal avoids gating on activeSessionId, which would wrongly treat every
+// grid card except the focused one as "background" and freeze them in mosaic mode.
+function isSessionVisible(sessionId) {
+  const entry = openSessions.get(sessionId);
+  if (!entry) return false;
+  // '.offscreen' is set by the grid IntersectionObserver on scrolled-out cards;
+  // treat those as background so the flush path skips their VT parse. Single-view
+  // terminals never carry it, so this only narrows visibility in grid mode.
+  return entry.element.classList.contains('visible') && !entry.element.classList.contains('offscreen');
+}
+
+// Drain the raw replay buffer for sessionId by writing all accumulated data to the
+// terminal in a single coalesced write(). Called on (re)visibility. The write
+// callback scrolls to bottom — the user expects to land at the current output.
+function drainReplayBuffer(sessionId) {
+  const arr = rawReplayBuffers.get(sessionId);
+  if (!arr || arr.length === 0) {
+    rawReplayBuffers.delete(sessionId);
+    return;
+  }
+  const entry = openSessions.get(sessionId);
+  if (!entry) {
+    rawReplayBuffers.delete(sessionId);
+    return;
+  }
+  const data = arr.join('');
+  rawReplayBuffers.delete(sessionId);
+  entry.terminal.write(data, () => {
+    entry.terminal.scrollToBottom();
+  });
+}
 
 function flushTerminalBuffer(sessionId) {
   const buf = terminalWriteBuffers.get(sessionId);
@@ -189,6 +269,16 @@ function flushTerminalBuffer(sessionId) {
 
   const data = buf.chunks.join('');
   lastFlushAt.set(sessionId, performance.now());
+
+  // Stage A: skip write() for non-visible sessions; accumulate raw data for replay.
+  if (!isSessionVisible(sessionId)) {
+    let arr = rawReplayBuffers.get(sessionId);
+    if (!arr) { arr = []; rawReplayBuffers.set(sessionId, arr); }
+    arr.push(data);
+    enforceReplayBufferCap(sessionId);
+    return;
+  }
+
   const wasAtBottom = isAtBottom(entry.terminal);
   const savedViewportY = entry.terminal.buffer.active.viewportY;
   entry.terminal.write(data, () => {
@@ -208,13 +298,18 @@ function scheduleFlush(sessionId, buf) {
 
   const last = lastFlushAt.get(sessionId);
   const elapsed = last === undefined ? Infinity : performance.now() - last;
-  if (elapsed >= MIN_FLUSH_INTERVAL_MS) {
+
+  // Stage B: use a longer flush interval for non-visible sessions to reduce
+  // background coalescing overhead. Visible sessions keep the 33 ms / ~30 fps budget.
+  const effectiveMin = isSessionVisible(sessionId) ? MIN_FLUSH_INTERVAL_MS : BACKGROUND_FLUSH_INTERVAL_MS;
+
+  if (elapsed >= effectiveMin) {
     // Enough time has passed — flush on the next animation frame (current behavior).
     buf.rafId = requestAnimationFrame(() => flushTerminalBuffer(sessionId));
   } else {
     // Too soon — schedule a timer for the remaining interval, then rAF from there.
     // Reuses buf.timerId so destroySession/flushTerminalBuffer teardown works unchanged.
-    const remaining = MIN_FLUSH_INTERVAL_MS - elapsed;
+    const remaining = effectiveMin - elapsed;
     buf.timerId = setTimeout(() => {
       buf.timerId = 0;
       buf.rafId = requestAnimationFrame(() => flushTerminalBuffer(sessionId));
@@ -332,6 +427,24 @@ function createTerminalEntry(session, opts = {}) {
       },
       allowNonHttpProtocols: true,
     },
+  });
+
+  // OSC 52 — let the program inside the terminal set the system clipboard (this is how
+  // Claude Code copies). xterm doesn't wire this up itself, so we do. Payload is
+  // "<selection>;<base64>" (or "<selection>;?" for a read-back query, which we ignore).
+  // Route through the main process — see writeClipboard — because the renderer clipboard
+  // is unreliable on Wayland.
+  terminal.parser.registerOscHandler(52, (payload) => {
+    const sep = payload.indexOf(';');
+    const b64 = sep === -1 ? payload : payload.slice(sep + 1);
+    if (!b64 || b64 === '?') return true;
+    try {
+      const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+      window.api.writeClipboard(new TextDecoder().decode(bytes));
+    } catch {
+      return false;
+    }
+    return true;
   });
 
   const fitAddon = new FitAddon.FitAddon();
@@ -459,6 +572,31 @@ function restoreTerminalWebgl(sessionId) {
   if (entry) loadTerminalWebgl(entry);
 }
 
+// Re-key the terminal-manager per-session state when a session's id changes
+// (temp id -> real id on detect, or fork). app.js re-keys openSessions/sessionMap
+// but these module-local maps are invisible to it; without this, a pending write
+// buffer flushes under the old id (openSessions miss -> dropped output) and
+// lruOrder keeps a dead id (one per new session), silently degrading the WebGL
+// LRU cap. Move the write buffer with its timers cancelled and re-armed under the
+// new id (a stale rafId left on the buffer would freeze scheduleFlush forever).
+function rekeyTerminalState(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return;
+  const buf = terminalWriteBuffers.get(oldId);
+  if (buf) {
+    cancelAnimationFrame(buf.rafId);
+    clearTimeout(buf.timerId);
+    buf.rafId = 0; buf.timerId = 0;
+    terminalWriteBuffers.delete(oldId);
+    terminalWriteBuffers.set(newId, buf);
+    if (buf.chunks && buf.chunks.length) scheduleFlush(newId, buf);
+  }
+  for (const map of [lastFlushAt, rawReplayBuffers]) {
+    if (map.has(oldId)) { map.set(newId, map.get(oldId)); map.delete(oldId); }
+  }
+  const li = lruOrder.indexOf(oldId);
+  if (li !== -1) lruOrder[li] = newId;
+}
+
 // Clean up a closed session entry (dispose terminal, remove DOM, remove from maps).
 function destroySession(sessionId) {
   const entry = openSessions.get(sessionId);
@@ -474,6 +612,9 @@ function destroySession(sessionId) {
     terminalWriteBuffers.delete(sessionId);
   }
   lastFlushAt.delete(sessionId);
+  // Drop any accumulated replay data — the terminal is being torn down so
+  // there is no point draining it on a future showSession.
+  rawReplayBuffers.delete(sessionId);
   entry.terminal.dispose();
   entry.element.remove();
   openSessions.delete(sessionId);
@@ -535,6 +676,11 @@ function showSession(sessionId) {
       entry.terminal.options.scrollback = SCROLLBACK_SINGLE;
       restoreTerminalWebgl(sessionId); // grid may have suspended the GL context
       entry.element.classList.add('visible');
+      // Drain any data that accumulated while this session was non-visible.
+      // After classList.add('visible') so isSessionVisible is true if a nested
+      // flush fires, and after scrollback restore so the buffer is at full
+      // capacity when the replay write lands.
+      drainReplayBuffer(sessionId);
       entry.terminal.focus();
       fitAndScroll(entry);
     }

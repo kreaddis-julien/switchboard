@@ -28,7 +28,6 @@ const sessionFilters = document.getElementById('session-filters');
 const searchBar = document.getElementById('search-bar');
 const statsContent = document.getElementById('stats-content');
 const memoryContent = document.getElementById('memory-content');
-const teamsContent = document.getElementById('teams-content');
 const statsViewer = document.getElementById('stats-viewer');
 const statsViewerBody = document.getElementById('stats-viewer-body');
 const memoryViewer = document.getElementById('memory-viewer');
@@ -348,6 +347,10 @@ window.api.onSessionDetected((tempId, realId) => {
   openSessions.delete(tempId);
   openSessions.set(realId, entry);
 
+  // Re-key terminal-manager buffers/LRU so buffered output isn't dropped and
+  // lruOrder doesn't keep the dead temp id (one leaks per new session otherwise).
+  if (typeof rekeyTerminalState === 'function') rekeyTerminalState(tempId, realId);
+
   terminalHeaderId.textContent = realId;
   terminalHeaderName.textContent = t('app.new_session');
 
@@ -371,6 +374,9 @@ window.api.onSessionForked((oldId, newId) => {
 
   openSessions.delete(oldId);
   openSessions.set(newId, entry);
+
+  // Re-key terminal-manager buffers/LRU (module-local maps app.js can't see).
+  if (typeof rekeyTerminalState === 'function') rekeyTerminalState(oldId, newId);
 
   // Re-key file panel state for the new session ID
   if (typeof rekeyFilePanelState === 'function') rekeyFilePanelState(oldId, newId);
@@ -404,6 +410,7 @@ window.api.onSessionForked((oldId, newId) => {
       if (summary) terminalHeaderName.textContent = summary.textContent;
     }
   });
+  schedulePersistWorkingSet();
   pollActiveSessions();
 });
 
@@ -463,6 +470,8 @@ window.api.onProcessExited((sessionId, exitCode) => {
   // The session is now closed (banner shown). Re-render so it drops out of the
   // "running only" filter and its running indicator clears.
   refreshSidebar();
+  // Claude session exited (entry.closed=true) -> update persisted working set.
+  schedulePersistWorkingSet();
   pollActiveSessions();
 });
 
@@ -893,6 +902,13 @@ async function loadProjects({ resort = false } = {}) {
     const realExists = allProjects.some(p => p.sessions.some(s => s.sessionId === sid));
     if (realExists) {
       pendingSessions.delete(sid);
+    } else if (!openSessions.has(sid)) {
+      // No live/mounted terminal and no real .jsonl ever appeared — a dead
+      // phantom (e.g. a launch that failed before writing any transcript).
+      // Drop it instead of re-injecting forever. While the terminal is still
+      // mounted (including closed-with-banner, for relaunch) the row is kept;
+      // once LRU eviction removes the entry, this reaps the pending record.
+      pendingSessions.delete(sid);
     } else {
       hasReinjected = true;
       // Still pending — re-inject into cached data
@@ -982,6 +998,7 @@ async function launchNewSession(project, sessionOptions) {
   if (result.mcpError) entry.terminal.write(`\r\n\x1b[33m[Switchboard] IDE emulation unavailable: ${result.mcpError}\x1b[0m\r\n`);
 
   showSession(sessionId);
+  schedulePersistWorkingSet();
   pollActiveSessions();
 }
 
@@ -1055,14 +1072,19 @@ async function showTerminalHeader(session) {
     };
   }
 
-  // Show active shell profile
+  // Show active shell profile. Guard against a session switch landing mid-await
+  // (two awaits below) — otherwise session A's shell label can overwrite the
+  // header while session B is already shown.
+  const shellSid = session.sessionId;
   try {
     const effective = await window.api.getEffectiveSettings(session.projectPath);
+    if (activeSessionId !== shellSid) return;
     const profileId = effective.shellProfile || 'auto';
     if (profileId === 'auto') {
       terminalHeaderShell.style.display = 'none';
     } else {
       const profiles = await window.api.getShellProfiles();
+      if (activeSessionId !== shellSid) return;
       const profile = profiles.find(p => p.id === profileId);
       terminalHeaderShell.textContent = profile ? profile.name : profileId;
       terminalHeaderShell.style.display = '';
@@ -1112,6 +1134,7 @@ async function openSession(session, customOptions) {
   if (result.mcpError) entry.terminal.write(`\r\n\x1b[33m[Switchboard] IDE emulation unavailable: ${result.mcpError}\x1b[0m\r\n`);
 
   showSession(sessionId);
+  schedulePersistWorkingSet();
   pollActiveSessions();
 }
 
@@ -1148,7 +1171,6 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
     plansContent.style.display = 'none';
     statsContent.style.display = 'none';
     memoryContent.style.display = 'none';
-    if (teamsContent) teamsContent.style.display = 'none';
     sessionFilters.style.display = 'none';
     searchBar.style.display = 'none';
 
@@ -1197,19 +1219,6 @@ document.querySelectorAll('.sidebar-tab').forEach(tab => {
       searchInput.placeholder = 'Search agent files...';
       memoryContent.style.display = '';
       loadMemories();
-    } else if (tabName === 'teams') {
-      // Agent Teams (experimental): sidebar lists runs; orch-viewer (managed by
-      // orchestration-view.js) shows the selected run's board in the main area.
-      if (teamsContent) teamsContent.style.display = '';
-      placeholder.style.display = 'none';
-      terminalArea.style.display = 'none';
-      planViewer.style.display = 'none';
-      memoryViewer.style.display = 'none';
-      settingsViewer.style.display = 'none';
-      statsViewer.style.display = 'none';
-      jsonlViewer.style.display = 'none';
-      if (typeof loadTeams === 'function') loadTeams();
-      if (typeof renderOrchPlaceholder === 'function') renderOrchPlaceholder();
     }
   });
 });
@@ -1447,21 +1456,107 @@ setTimeout(() => {
 // Let the settings panel push updated key bindings live (no restart needed).
 window._applyShortcuts = (stored) => setAppShortcuts(stored);
 
+// --- Working-set persistence (open sessions -> global.openWorkingSet) ---
+// The set of open Claude sessions is persisted to the `global` setting so it can
+// be re-opened on the next launch (gated by the `restoreOnStartup` setting).
+// Persisted incrementally on open/close/exit/fork (not only at quit) so it
+// survives a crash. Plain shell sessions are excluded (no resumable state).
+let restoringWorkingSet = false;      // suppress persist calls during a restore
+let persistWorkingSetTimer = null;
+const RESTORE_STAGGER_MS = 500;        // gap between sequential resumes
+
+// Serialise read-modify-write so two async persist paths can't drop each other's keys.
+let _persistChain = Promise.resolve();
+function persistWorkingSet() {
+  _persistChain = _persistChain.then(async () => {
+    const global = (await window.api.getSetting('global')) || {};
+    const set = [];
+    for (const [sessionId, entry] of openSessions) {
+      if (entry.session.type === 'terminal') continue; // plain shells: no resumable state
+      if (entry.closed) continue;
+      set.push({ sessionId, projectPath: entry.session.projectPath, active: sessionId === activeSessionId });
+    }
+    global.openWorkingSet = set;
+    await window.api.setSetting('global', global);
+  }).catch((e) => { console.warn('[switchboard] failed to persist working set', e); });
+  return _persistChain;
+}
+
+function schedulePersistWorkingSet() {
+  if (restoringWorkingSet) return;
+  if (persistWorkingSetTimer) clearTimeout(persistWorkingSetTimer);
+  persistWorkingSetTimer = setTimeout(() => { persistWorkingSetTimer = null; persistWorkingSet(); }, 500);
+}
+
+async function runRestore(list) {
+  for (const item of list) {
+    const s = sessionMap.get(item.sessionId);
+    if (!s || openSessions.has(item.sessionId)) continue;
+    // Resume with the project's current "new session" defaults, like a manual relaunch.
+    await openSession(s);
+    await new Promise(r => setTimeout(r, RESTORE_STAGGER_MS));
+  }
+  const activeItem = list.find(i => i.active) || list[list.length - 1];
+  if (activeItem && openSessions.has(activeItem.sessionId)) showSession(activeItem.sessionId);
+}
+
+async function restoreWorkingSet() {
+  const g = (await window.api.getSetting('global')) || {};
+  const mode = g.restoreOnStartup || 'off';
+  const savedSet = g.openWorkingSet || [];
+  if (mode === 'off' || savedSet.length === 0) return;
+
+  // Only sessions still indexed and not already open (guards deleted sessions / vanished worktrees).
+  const candidates = savedSet.filter(item => sessionMap.has(item.sessionId) && !openSessions.has(item.sessionId));
+  if (candidates.length === 0) return;
+
+  const doRestore = async () => {
+    restoringWorkingSet = true;
+    try { await runRestore(candidates); } finally { restoringWorkingSet = false; }
+    persistWorkingSet();
+  };
+
+  if (mode === 'auto') { await doRestore(); return; }
+
+  // mode === 'ask': non-modal toast
+  const n = candidates.length;
+  const toast = document.createElement('div');
+  toast.id = 'restore-toast';
+  toast.className = 'restore-toast';
+  const msg = document.createElement('span');
+  msg.className = 'restore-toast-msg';
+  msg.textContent = t('restore.toast_msg', { n, s: n !== 1 ? 's' : '' });
+  const btnRestore = document.createElement('button');
+  btnRestore.className = 'restore-toast-btn restore-toast-restore';
+  btnRestore.textContent = t('restore.btn_restore');
+  const btnDismiss = document.createElement('button');
+  btnDismiss.className = 'restore-toast-btn restore-toast-dismiss';
+  btnDismiss.textContent = t('restore.btn_dismiss');
+  toast.append(msg, btnRestore, btnDismiss);
+  document.body.appendChild(toast);
+  btnRestore.addEventListener('click', async () => { toast.remove(); await doRestore(); });
+  btnDismiss.addEventListener('click', () => toast.remove());
+}
+
 // Load the saved interface language (and translate static chrome) BEFORE the
 // first render, so t()-based strings render in the right language from the start.
 (window.I18N ? window.I18N.init() : Promise.resolve())
   .catch(() => {})
   .then(() => loadProjects())
-  .then(() => {
+  .then(async () => {
     // Restore grid view preference before opening sessions so they enter grid mode
     if (localStorage.getItem('gridViewActive') === '1') {
       showGridView();
     }
-    // Restore active session after reload
+    // Restore active session after reload (sessionStorage — lost on full restart).
+    // Awaited so openSessions is populated before restoreWorkingSet's
+    // !openSessions.has() filter runs, otherwise a session could be opened twice.
     if (activeSessionId && !openSessions.has(activeSessionId)) {
       const session = sessionMap.get(activeSessionId);
-      if (session) openSession(session);
+      if (session) await openSession(session);
     }
+    // Restore the persisted working set (survives full restarts). Default off.
+    await restoreWorkingSet();
   });
 
 // Live-reload sidebar when filesystem changes are detected
@@ -1524,9 +1619,24 @@ const updaterHandler = (type, data) => {
     case 'checking':
       setUpdaterStatus(t('upd.checking'));
       break;
-    case 'update-available':
-      setUpdaterStatus(`Downloading v${data.version}…`);
+    case 'update-available': {
+      // Notify-only (unsigned build): show a dismissable banner that opens the
+      // release page for a manual .dmg download. No in-app install.
+      if (localStorage.getItem('update-dismissed') === data.version) return;
+      setUpdaterStatus(`${t('upd.available_msg')} v${data.version}`, 6000);
+      const toast = document.getElementById('update-toast');
+      const msg = document.getElementById('update-toast-msg');
+      msg.innerHTML = `${escapeHtml(t('upd.available_msg'))} <span class="update-version">v${escapeHtml(String(data.version))}</span>`;
+      const dlBtn = document.getElementById('update-restart-btn');
+      dlBtn.textContent = t('upd.download');
+      dlBtn.onclick = () => window.api.openExternal(data.url || `https://github.com/kreaddis-julien/switchboard/releases/latest`);
+      document.getElementById('update-dismiss-btn').onclick = () => {
+        toast.classList.add('hidden');
+        localStorage.setItem('update-dismissed', data.version);
+      };
+      toast.classList.remove('hidden');
       break;
+    }
     case 'update-not-available':
       setUpdaterStatus(t('upd.uptodate'), 3000);
       break;

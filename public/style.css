@@ -183,6 +183,45 @@ body { display: flex; flex-direction: column; }
   padding: 3px 4px;
 }
 #update-dismiss-btn:hover { color: var(--c-999); }
+
+/* ========== RESTORE-SESSIONS TOAST ========== */
+.restore-toast {
+  position: fixed;
+  bottom: 32px;
+  right: 12px;
+  background: var(--c-1a1a2e);
+  border: 1px solid rgb(var(--accent-rgb) / 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--c-c0c0d0);
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  animation: toast-slide-in 0.3s ease-out;
+}
+.restore-toast-msg { white-space: nowrap; line-height: 1.4; margin-right: 6px; }
+.restore-toast-restore {
+  background: var(--accent);
+  color: var(--c-fff);
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.restore-toast-dismiss {
+  background: none;
+  border: none;
+  color: var(--c-666);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 4px;
+}
+.restore-toast-dismiss:hover { color: var(--c-999); }
+
 @keyframes toast-slide-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1157,26 +1196,6 @@ body { display: flex; flex-direction: column; }
   white-space: nowrap;
 }
 
-/* --- Session-health badge (only shown for warn states) --- */
-/* Discreet health indicator: a small dot on the title row (left of the time).
-   Full label + crossed thresholds in the tooltip. A faint ring lifts it off the
-   row without shouting like the old full-width pill. */
-.session-health {
-  flex: none;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  align-self: center;
-  /* hide any text content, keep the dot purely visual (tooltip carries meaning) */
-  font-size: 0; line-height: 0; overflow: hidden;
-}
-.session-health.health-marathon-risk {
-  background: var(--amber);
-  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.16);
-}
-.session-health.health-handoff-recommended {
-  background: var(--warn);
-  box-shadow: 0 0 0 3px rgb(var(--warn-rgb) / 0.16);
-}
 /* L'heure reste visible au survol (le bouton "..." apparait a sa droite). */
 
 /* ===== Brand header sidebar (mark orange + Switchboard) ===== */
@@ -4711,253 +4730,3 @@ body.sb-no-tabs #global-settings-btn { margin-left: 0; }
   flex-shrink: 0;
 }
 .settings-hidden-unhide:hover { background: rgb(var(--accent-rgb) / 0.1); }
-
-/* Agent Teams (orchestration) — remapped to shadcn/Geist tokens (--ok/--warn/--amber/--err/--info/--mauve + rgb(var(--on)/x) neutrals, --sb-* surfaces); theme-aware light/dark */
-/* ====================== Agent Teams (orchestration) ====================== */
-
-#teams-content { overflow-y: auto; padding: 8px; }
-#orch-new-run-btn {
-  width: 100%; padding: 7px 10px; margin-bottom: 10px; cursor: pointer;
-  background: var(--accent, #d97757); color: #fff; border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 600;
-}
-#orch-new-run-btn:hover { filter: brightness(1.1); }
-.orch-run-project {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
-  opacity: 0.6; margin: 10px 4px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.orch-run-row {
-  position: relative;
-  padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px;
-  border: 1px solid transparent;
-}
-.orch-run-row:hover { background: rgb(var(--on) / 0.06); }
-.orch-run-row.active { background: rgb(var(--accent-rgb) / 0.14); border-color: rgb(var(--accent-rgb) / 0.4); }
-.orch-run-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; padding-right: 18px; }
-.orch-run-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--sb-fg-muted); }
-.orch-run-progress { font-size: 11px; color: var(--sb-fg-faint); }
-.orch-run-delete {
-  position: absolute; top: 6px; right: 6px; width: 20px; height: 20px;
-  display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 5px; background: none; cursor: pointer;
-  color: var(--sb-fg-muted); font-size: 15px; line-height: 1; opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-}
-.orch-run-row:hover .orch-run-delete { opacity: 0.7; }
-.orch-run-delete:hover { opacity: 1; background: rgb(var(--err-rgb) / 0.16); color: var(--err); }
-
-.orch-chip {
-  display: inline-block; padding: 1px 7px; border-radius: 9px; font-size: 10px;
-  font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
-  background: rgb(var(--on) / 0.1); color: var(--sb-fg-dim);
-}
-.orch-run-status-active, .orch-status-in_progress, .orch-status-spawning { background: rgb(var(--ok-rgb) / 0.16); color: var(--ok); }
-.orch-run-status-planning { background: rgb(var(--info-rgb) / 0.16); color: var(--info); }
-.orch-run-status-paused { background: rgb(var(--amber-rgb) / 0.18); color: var(--amber); }
-.orch-run-status-done, .orch-status-done, .orch-status-approved { background: rgb(var(--ok-rgb) / 0.18); color: var(--ok); }
-.orch-run-status-abandoned { background: rgb(var(--err-rgb) / 0.14); color: var(--err); }
-.orch-status-ready { background: rgb(var(--info-rgb) / 0.16); color: var(--info); }
-.orch-status-needs_review, .orch-status-reviewing { background: rgb(var(--mauve-rgb) / 0.16); color: var(--mauve); }
-.orch-status-changes_requested, .orch-status-merging { background: rgb(var(--amber-rgb) / 0.16); color: var(--amber); }
-.orch-status-blocked, .orch-status-failed { background: rgb(var(--err-rgb) / 0.16); color: var(--err); }
-
-#orch-viewer { flex-direction: column; flex: 1; min-width: 0; overflow: hidden; }
-/* --- Dashboard header (two rows: title/actions, then progress/cost/roster) - */
-#orch-viewer-header {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 12px 16px; border-bottom: 1px solid rgb(var(--on) / 0.12);
-  background: var(--sb-card);
-}
-.orch-dash-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.orch-dash-titlewrap { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
-#orch-viewer-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
-.orch-dash-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.orch-header-roles, .orch-header-tiers { font-size: 11px; color: var(--sb-fg-muted); }
-.orch-action-btn {
-  padding: 4px 10px; font-size: 12px; cursor: pointer; border-radius: 6px;
-  border: 1px solid rgb(var(--on) / 0.16); background: transparent; color: var(--sb-fg-dim);
-}
-.orch-action-btn:hover { background: rgb(var(--on) / 0.07); color: var(--sb-fg); }
-
-.orch-dash-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.orch-progress { display: flex; align-items: center; gap: 9px; min-width: 220px; flex: 1 1 240px; max-width: 420px; }
-.orch-progress-bar {
-  flex: 1; height: 7px; border-radius: 99px; overflow: hidden;
-  background: rgb(var(--on) / 0.1);
-}
-.orch-progress-fill {
-  height: 100%; border-radius: 99px; background: var(--accent);
-  transition: width 0.35s ease;
-}
-.orch-progress-fill.complete { background: var(--ok); }
-.orch-progress-label { font-size: 11px; color: var(--sb-fg-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.orch-dash-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 11px; }
-.orch-stat { color: var(--sb-fg-muted); }
-.orch-stat-spend { color: var(--sb-fg-dim); font-family: monospace; }
-
-/* --- Body: tab bar + content -------------------------------------------- */
-#orch-viewer-body { flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
-.orch-tabbar {
-  display: flex; align-items: center; gap: 4px;
-  padding: 8px 16px 0; border-bottom: 1px solid rgb(var(--on) / 0.08);
-}
-.orch-tab-btn {
-  padding: 6px 12px; font-size: 12.5px; cursor: pointer; border: none;
-  border-bottom: 2px solid transparent; background: transparent; color: var(--sb-fg-muted);
-  border-radius: 6px 6px 0 0; margin-bottom: -1px;
-}
-.orch-tab-btn:hover { color: var(--sb-fg); background: rgb(var(--on) / 0.05); }
-.orch-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.orch-tab-content { flex: 1; overflow: auto; padding: 14px 16px; min-height: 0; }
-
-/* --- Overview (dashboard list) ------------------------------------------ */
-.orch-overview { display: flex; flex-direction: column; gap: 16px; max-width: 920px; }
-.orch-ov-group { display: flex; flex-direction: column; gap: 6px; }
-.orch-ov-group-head { display: flex; align-items: center; gap: 8px; padding: 0 2px 2px; }
-.orch-ov-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.orch-ov-group-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sb-fg-dim); }
-.orch-ov-group-count {
-  font-size: 10px; font-weight: 600; color: var(--sb-fg-muted);
-  background: rgb(var(--on) / 0.08); border-radius: 99px; padding: 0 7px; line-height: 16px;
-}
-.orch-ov-empty-summary {
-  font-size: 11px; color: var(--sb-fg-faint); padding: 6px 2px;
-  border-top: 1px dashed rgb(var(--on) / 0.1); margin-top: 2px;
-}
-.orch-ov-row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; border-radius: 9px;
-  background: var(--sb-elevated); border: 1px solid rgb(var(--on) / 0.08);
-}
-.orch-ov-row:hover { border-color: rgb(var(--on) / 0.16); }
-.orch-ov-row.orch-card-blocked, .orch-ov-row.orch-card-failed { border-color: rgb(var(--err-rgb) / 0.45); }
-.orch-ov-rowdot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 5px; background: rgb(var(--on) / 0.3); }
-.orch-ov-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.orch-ov-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.orch-ov-id { font-family: monospace; font-size: 11px; color: var(--sb-fg-muted); flex: none; }
-.orch-ov-title { font-size: 13px; font-weight: 600; color: var(--sb-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orch-ov-sub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--sb-fg-muted); }
-.orch-ov-model { font-family: monospace; font-size: 10.5px; color: var(--sb-fg-faint); }
-.orch-ov-extra { color: var(--sb-fg-faint); }
-.orch-ov-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; flex: none; }
-/* Secondary links (Worker/Reviewer/Spec/Review) stay quiet until hover; the
-   primary human-override (Approve/Retry…) is always full-strength so a needed
-   decision is never hidden. */
-.orch-ov-btn {
-  font-size: 11px; padding: 3px 9px; cursor: pointer; border-radius: 6px;
-  border: 1px solid rgb(var(--on) / 0.16); background: transparent; color: var(--sb-fg-muted);
-  opacity: 0.7; transition: opacity 0.12s, background 0.12s, color 0.12s;
-}
-.orch-ov-row:hover .orch-ov-btn { opacity: 1; }
-.orch-ov-btn:hover { background: rgb(var(--on) / 0.08); color: var(--sb-fg); opacity: 1; }
-.orch-ov-btn.orch-card-action-primary { opacity: 1; }
-.orch-ov-btn.orch-card-action-primary { border-color: rgb(var(--accent-rgb) / 0.55) !important; color: var(--accent) !important; }
-
-#orch-board { display: flex; gap: 10px; align-items: flex-start; min-height: 100%; }
-.orch-board-col {
-  flex: 1 0 170px; min-width: 170px; max-width: 260px; border-radius: 8px;
-  background: rgb(var(--on) / 0.04); padding: 8px;
-}
-.orch-board-col-head {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--sb-fg-muted); margin-bottom: 8px; padding: 0 2px;
-}
-.orch-card {
-  background: var(--sb-elevated); border: 1px solid rgb(var(--on) / 0.1);
-  border-radius: 7px; padding: 8px; margin-bottom: 8px; font-size: 12px;
-}
-.orch-card-attention, .orch-card-blocked, .orch-card-failed { border-color: rgb(var(--err-rgb) / 0.5); }
-.orch-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 4px; }
-.orch-card-id { font-family: monospace; font-size: 11px; color: var(--sb-fg-muted); }
-.orch-card-title { font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
-.orch-card-meta { font-size: 11px; color: var(--sb-fg-faint); margin-bottom: 6px; min-height: 0; }
-.orch-card-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.orch-card-actions button {
-  font-size: 11px; padding: 2px 8px; cursor: pointer; border-radius: 4px;
-  border: 1px solid rgb(var(--on) / 0.16); background: transparent; color: var(--sb-fg-dim);
-}
-.orch-card-actions button:hover { background: rgb(var(--on) / 0.07); color: var(--sb-fg); }
-.orch-card-action-primary { border-color: rgb(var(--accent-rgb) / 0.6) !important; color: var(--accent) !important; }
-
-#orch-plan { display: flex; gap: 16px; align-items: flex-start; }
-#orch-plan-tree { flex: 0 0 320px; border-right: 1px solid rgb(var(--on) / 0.1); padding-right: 12px; }
-.orch-tree-node { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 12px; }
-.orch-tree-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: rgb(var(--on) / 0.3); }
-.orch-tree-dot.orch-status-done, .orch-tree-dot.orch-status-approved { background: var(--ok); }
-.orch-tree-dot.orch-status-in_progress, .orch-tree-dot.orch-status-spawning { background: var(--ok); }
-.orch-tree-dot.orch-status-ready { background: var(--info); }
-.orch-tree-dot.orch-status-needs_review, .orch-tree-dot.orch-status-reviewing { background: var(--mauve); }
-.orch-tree-dot.orch-status-changes_requested, .orch-tree-dot.orch-status-merging { background: var(--amber); }
-.orch-tree-dot.orch-status-blocked, .orch-tree-dot.orch-status-failed { background: var(--err); }
-.orch-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.orch-tree-status { font-size: 10px; color: var(--sb-fg-faint); }
-#orch-plan-md { flex: 1; min-width: 0; font-size: 13px; line-height: 1.55; }
-#orch-plan-md pre { white-space: pre-wrap; font-size: 12px; }
-
-#orch-timeline { font-size: 12px; }
-.orch-event { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid rgb(var(--on) / 0.06); }
-.orch-event-ts { font-family: monospace; font-size: 11px; color: var(--sb-fg-faint); flex: none; }
-.orch-event-type { font-weight: 600; flex: none; min-width: 110px; }
-.orch-event-text { color: var(--sb-fg-dim); word-break: break-word; }
-
-.orch-modal-overlay {
-  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 1000;
-  display: flex; align-items: center; justify-content: center;
-}
-.orch-modal {
-  background: var(--sb-card); color: var(--sb-fg);
-  border: 1px solid rgb(var(--on) / 0.14);
-  border-radius: 10px; width: min(680px, 90vw); max-height: 85vh; display: flex; flex-direction: column;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
-}
-.orch-modal-head {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 14px; border-bottom: 1px solid rgb(var(--on) / 0.12); font-weight: 700;
-}
-.orch-modal-head button { background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; }
-.orch-modal-body { padding: 14px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
-.orch-confirm-modal { width: min(440px, 90vw); }
-.orch-confirm-modal .orch-modal-body { white-space: normal; line-height: 1.5; color: var(--sb-fg-dim); }
-.orch-confirm-actions {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 0 14px 14px;
-}
-.orch-danger-btn { border-color: rgb(var(--err-rgb) / 0.5); color: var(--err); }
-.orch-danger-btn:hover { background: rgb(var(--err-rgb) / 0.14); }
-.orch-form { display: flex; flex-direction: column; gap: 10px; }
-.orch-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
-.orch-field > span { color: var(--sb-fg-muted); }
-.orch-field input, .orch-field select, .orch-field textarea {
-  background: rgb(var(--on) / 0.05); color: var(--sb-fg); border: 1px solid rgb(var(--on) / 0.16);
-  border-radius: 5px; padding: 6px 8px; font-size: 13px; font-family: inherit;
-}
-.orch-form-error { color: var(--err); font-size: 12px; min-height: 14px; }
-.orch-form-submit { padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--accent); color: #fff; border: none; border-radius: 6px; }
-.orch-form-submit:hover { filter: brightness(1.06); }
-.orch-invalid-warning { color: var(--amber); font-size: 12px; font-weight: 600; cursor: help; }
-
-/* Agent Teams — complexity tiers */
-.orch-card-tier { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11px; }
-.orch-card-model { color: var(--sb-fg-muted); font-family: monospace; font-size: 10px; }
-.orch-cx { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
-.orch-cx-trivial  { background: rgb(var(--on) / 0.1);        color: var(--sb-fg-muted); }
-.orch-cx-low      { background: rgb(var(--ok-rgb) / 0.16);    color: var(--ok); }
-.orch-cx-medium   { background: rgb(var(--info-rgb) / 0.16);  color: var(--info); }
-.orch-cx-high     { background: rgb(var(--amber-rgb) / 0.18); color: var(--amber); }
-.orch-cx-critical { background: rgb(var(--err-rgb) / 0.16);   color: var(--err); }
-.orch-header-tiers { font-size: 11px; color: var(--sb-fg-muted); }
-.orch-tier-editor { border: 1px solid rgb(var(--on) / 0.14); border-radius: 6px; padding: 8px 10px; }
-.orch-tier-editor summary { cursor: pointer; font-size: 12px; font-weight: 600; }
-.orch-tier-hint { font-size: 11px; color: var(--sb-fg-faint); margin: 6px 0; }
-.orch-tier-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-.orch-tier-row .orch-cx { min-width: 64px; text-align: center; }
-.orch-tier-row select { flex: 1; }
-.orch-tier-cap { width: 56px; }
-
-/* Agent Teams — cost + multi-lens review */
-.orch-run-spend { font-size: 11px; color: var(--sb-fg-muted); font-family: monospace; }
-.orch-card-lenses { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-.orch-lens { font-size: 10px; padding: 0 6px; border-radius: 8px; font-weight: 600; }
-.orch-lens-ok { background: rgb(var(--ok-rgb) / 0.16); color: var(--ok); }
-.orch-lens-bad { background: rgb(var(--err-rgb) / 0.16); color: var(--err); }
-.orch-lens-pending { background: rgb(var(--on) / 0.1); color: var(--sb-fg-muted); }

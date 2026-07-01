@@ -67,7 +67,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "doctly",
+      "owner": "kreaddis-julien",
       "repo": "switchboard"
     },
     "mac": {
