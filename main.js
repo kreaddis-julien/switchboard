@@ -87,6 +87,59 @@ if (process.env.FORCE_UPDATER) {
     }
   });
 }
+
+// --- Update notifier (notify-only; no auto-install) ---
+// This fork ships UNSIGNED macOS builds (no Apple Developer ID), so real
+// auto-update (Squirrel.Mac) can't work — it requires a signed+notarized app.
+// Instead we read the fork's latest GitHub release and, when it's newer than the
+// running version, surface a dismissable "vX available — Download" banner that
+// opens the release page. Reading a public releases JSON needs no signing.
+const UPDATE_REPO = 'kreaddis-julien/switchboard';
+
+function isNewerVersion(remote, current) {
+  const a = String(remote).split('.').map(n => parseInt(n, 10) || 0);
+  const b = String(current).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
+}
+
+function fetchLatestRelease() {
+  const https = require('https');
+  return new Promise((resolve, reject) => {
+    const req = https.get({
+      hostname: 'api.github.com',
+      path: `/repos/${UPDATE_REPO}/releases/latest`,
+      headers: { 'User-Agent': 'switchboard-app', 'Accept': 'application/vnd.github+json' },
+      timeout: 10000,
+    }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+  });
+}
+
+async function checkForUpdateNotification() {
+  try {
+    const rel = await fetchLatestRelease();
+    const tag = rel && rel.tag_name;
+    if (!tag) return;
+    const remote = String(tag).replace(/^v/, '');
+    if (isNewerVersion(remote, app.getVersion()) && mainWindow && !mainWindow.isDestroyed()) {
+      log.info(`[update-check] newer release available: v${remote}`);
+      mainWindow.webContents.send('updater-event', 'update-available', { version: remote, url: rel.html_url });
+    }
+  } catch (e) {
+    log.warn('[update-check] ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
 const {
   getMeta, getAllMeta, toggleStar, setName, setArchived,
   isCachePopulated, getAllCached, getCachedByFolder, getCachedByParent, getCachedFolder, getCachedSession, upsertCachedSessions, touchCachedModified,
@@ -1984,24 +2037,16 @@ function startProjectsWatcher() {
 // --- IPC: app version ---
 ipcMain.handle('get-app-version', () => app.getVersion());
 
-// --- IPC: auto-updater (INERT in this fork) ---
-// Auto-update is disabled (we build locally from our own repo; the configured
-// feed points at upstream doctly releases). These handlers stay registered so a
-// stray/regressed caller doesn't crash on a missing handler, but they must never
-// touch the updater — invoking one would otherwise check/install the UPSTREAM
-// build and overwrite this fork. Inert + loud.
+// --- IPC: update check (notify-only) ---
+// Manual trigger for the same notifier the scheduler runs. There is no in-app
+// download/install (unsigned build) — the banner opens the release page and the
+// user installs the .dmg manually. download/install stay inert for any stray caller.
 ipcMain.handle('updater-check', () => {
-  log.warn('[updater] check invoked but auto-update is disabled in this fork');
-  return { available: false, disabled: true };
+  checkForUpdateNotification();
+  return { ok: true };
 });
-ipcMain.handle('updater-download', () => {
-  log.warn('[updater] download invoked but auto-update is disabled in this fork');
-  return { disabled: true };
-});
-ipcMain.handle('updater-install', () => {
-  log.warn('[updater] install invoked but auto-update is disabled in this fork');
-  return { disabled: true };
-});
+ipcMain.handle('updater-download', () => ({ disabled: true }));
+ipcMain.handle('updater-install', () => ({ disabled: true }));
 
 // --- IPC: delete-worktree ---
 // Validated path pattern: <project>/.<segment>/[worktrees/]<name>
@@ -2175,12 +2220,14 @@ app.whenReady().then(() => {
   // (populatePromise !== null) means this is a no-op on the same tick.
   if (searchFtsRecreated) populateCacheViaWorker();
 
-  // Auto-update is intentionally disabled in this fork. We are built locally from
-  // our own repo (no published releases), and the configured feed still points at
-  // the upstream doctly releases — an automatic check would surface upstream builds
-  // as "updates" and a click could overwrite this fork. So we do NOT schedule any
-  // checkForUpdates here. The manual "Check for Updates" UI is also removed; the
-  // updater module stays loaded but dormant.
+  // Update notifier (unsigned build → notify only, never auto-install). Check the
+  // fork's GitHub releases shortly after launch and once a day; the renderer shows
+  // a dismissable "Download" banner if a newer version exists. Packaged only, so a
+  // dev build doesn't nag. See checkForUpdateNotification.
+  if (app.isPackaged) {
+    setTimeout(checkForUpdateNotification, 10000);
+    setInterval(checkForUpdateNotification, 24 * 60 * 60 * 1000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

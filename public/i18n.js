@@ -173,6 +173,8 @@
       'upd.failed': 'Update check failed',
       'upd.new_ready': 'New Version Ready',
       'upd.release_notes': 'release notes',
+      'upd.available_msg': 'A new version is available',
+      'upd.download': 'Download',
       // relative timestamps (utils.formatDate)
       'time.just_now': 'just now',
       'time.mins': '{n}m ago',
@@ -341,6 +343,8 @@
       'upd.failed': 'Échec de la vérification de mise à jour',
       'upd.new_ready': 'Nouvelle version prête',
       'upd.release_notes': 'notes de version',
+      'upd.available_msg': 'Une nouvelle version est disponible',
+      'upd.download': 'Télécharger',
       'time.just_now': 'à l’instant',
       'time.mins': 'il y a {n} min',
       'time.hours': 'il y a {n} h',

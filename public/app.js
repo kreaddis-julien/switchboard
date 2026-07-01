@@ -1619,9 +1619,24 @@ const updaterHandler = (type, data) => {
     case 'checking':
       setUpdaterStatus(t('upd.checking'));
       break;
-    case 'update-available':
-      setUpdaterStatus(`Downloading v${data.version}…`);
+    case 'update-available': {
+      // Notify-only (unsigned build): show a dismissable banner that opens the
+      // release page for a manual .dmg download. No in-app install.
+      if (localStorage.getItem('update-dismissed') === data.version) return;
+      setUpdaterStatus(`${t('upd.available_msg')} v${data.version}`, 6000);
+      const toast = document.getElementById('update-toast');
+      const msg = document.getElementById('update-toast-msg');
+      msg.innerHTML = `${escapeHtml(t('upd.available_msg'))} <span class="update-version">v${escapeHtml(String(data.version))}</span>`;
+      const dlBtn = document.getElementById('update-restart-btn');
+      dlBtn.textContent = t('upd.download');
+      dlBtn.onclick = () => window.api.openExternal(data.url || `https://github.com/kreaddis-julien/switchboard/releases/latest`);
+      document.getElementById('update-dismiss-btn').onclick = () => {
+        toast.classList.add('hidden');
+        localStorage.setItem('update-dismissed', data.version);
+      };
+      toast.classList.remove('hidden');
       break;
+    }
     case 'update-not-available':
       setUpdaterStatus(t('upd.uptodate'), 3000);
       break;

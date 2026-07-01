@@ -2,7 +2,7 @@
 
 **Your command center for Claude Code sessions** — a unified view of every Claude Code session across all your projects. Launch, resume, fork, and monitor sessions from a single window, no more juggling terminal tabs or digging through `~/.claude/projects`.
 
-> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts**, a **bilingual EN/FR interface**, and a curated set of upstream PRs merged in. There are **no prebuilt releases** for this fork — you [build it from source](#install-build-from-source) (it takes a couple of minutes). Auto-update is intentionally disabled so a local build is never overwritten by an upstream release.
+> **Personal fork** of [doctly/switchboard](https://github.com/doctly/switchboard) — a full **shadcn/ui-inspired redesign** (Geist font, Claude-orange accent), a **performance pass** (DB ~5× smaller, bounded renderer memory, no main-process freezes), **configurable shortcuts**, a **bilingual EN/FR interface**, and a curated set of upstream PRs merged in. Tagged releases publish a **prebuilt macOS `.dmg`**, and the app **checks this fork's releases and notifies you** when a newer version is out (notify-only — the build is unsigned, so you download and install manually). You can also [build from source](#install-build-from-source) (a couple of minutes).
 
 ## Contents
 
@@ -59,7 +59,7 @@ For Windows/Linux, see [Building](#building).
 **Settings**
 - **Redesigned panel** with a left **category nav** (General / Notifications / Sessions / Sidebar / Toolbar / Claude CLI / About) and **auto-save** — changes apply and persist on the fly, no Save button.
 - **Configurable toolbar** — choose, per action (pin, running, overview, collapse-all, bookmarks, today, archive, re-sort, add-project), whether it sits in the sidebar toolbar or behind the **"more" (⋯)** popover, and **drag to reorder** them (Settings → Toolbar).
-- **Auto-update disabled** — this fork builds locally from its own repo (no releases), and the upstream feed would otherwise surface upstream builds as "updates" and overwrite the fork, so the update check is removed.
+- **Update notifications (notify-only)** — on launch and once a day the app checks this fork's GitHub releases and shows a dismissable banner when a newer version is available; **Download** opens the release page. There is no in-app auto-install: the macOS build is **unsigned** (no Apple Developer ID), which rules out signed/notarized auto-update. Install the `.dmg` manually — on first launch **right-click → Open** once to clear Gatekeeper.
 
 **Notifications & performance**
 - **Sound notifications** (on by default) — a chime when a non-focused session finishes a run, a more insistent two-tone when one needs attention/permission (synthesized via Web Audio, no assets). Addresses upstream [#66](https://github.com/doctly/switchboard/issues/66).
